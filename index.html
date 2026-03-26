@@ -1452,6 +1452,884 @@ const SOURCES = [
       ]},
     ]
   },
+
+  // ── Additional sources to complete full matrix ──
+
+  { id:'azure-ad', grp:'Azure Identity', icon:'👤', name:'Microsoft Azure AD',
+    parser:'microsoft-azure-ad', method:'hub',
+    ingest:true, investigate:true,
+    desc:'Azure Active Directory audit and sign-in logs via Diagnostic Settings → Event Hub. Covers legacy AAD tenants. For modern Entra ID tenants, the microsoft-entra-id parser is preferred, but both parsers are supported in NG SIEM.',
+    msSteps:[
+      ['In Azure Portal: Entra ID › Monitoring › Diagnostic Settings › Add diagnostic setting.','https://learn.microsoft.com/en-us/azure/active-directory/reports-monitoring/howto-integrate-activity-logs-with-azure-monitor-logs','Portal: Diagnostic Settings'],
+      ['Create dedicated Event Hub: e.g. azure-ad-logs (Standard+ tier).','https://learn.microsoft.com/en-us/azure/event-hubs/event-hubs-create','Dedicated hub for AAD logs only'],
+      ['Select categories: SignInLogs, AuditLogs. Route to the azure-ad-logs hub.','https://learn.microsoft.com/en-us/azure/active-directory/reports-monitoring/howto-integrate-activity-logs-with-azure-monitor-logs','Select required categories'],
+      ['Copy Event Hub Hostname and Connection String Primary Key.','https://learn.microsoft.com/en-us/azure/event-hubs/event-hubs-get-connection-string','Credentials needed for Cribl'],
+    ],
+    criblSteps:[
+      ['Create Azure Event Hubs Source · Hub: azure-ad-logs · Group ID: cribl-azure-ad.','https://docs.cribl.io/stream/sources-azure-event-hubs/','Unique Group ID — never shared'],
+      ['SASL PLAIN · Username: $ConnectionString · Validate Certs: OFF.','https://docs.cribl.io/stream/sources-azure-event-hubs/','Standard Event Hub auth'],
+      ['Pipeline: Event Breaker Function → unroll records[] → Eval timestamp fix.','https://docs.cribl.io/stream/event-breaker-function/','Required for all Event Hub sources'],
+      ['Route to NG SIEM destination with PQ enabled.','https://docs.cribl.io/stream/destinations-crowdstrike-next-gen-siem/','Enable Persistent Queue'],
+    ],
+    csSteps:[
+      ['Create Cribl Data Connector · Vendor: Microsoft · Product: Azure AD · Parser: microsoft-azure-ad.','https://docs.cribl.io/stream/destinations-crowdstrike-next-gen-siem/','Note: consider microsoft-entra-id for modern tenants'],
+      ['Generate API key → configure Cribl NG SIEM destination → Commit & Deploy.','https://docs.cribl.io/stream/destinations-crowdstrike-next-gen-siem/','HEC auto-created'],
+      ['Validate: Event Search → Source: Third Party.','https://docs.cribl.io/stream/destinations-crowdstrike-next-gen-siem/','Confirm data flowing'],
+    ],
+    flowNodes:[
+      {type:'fn-ms',icon:'👤',lbl:'Microsoft',typ:'Azure Active Directory',rows:[
+        {k:'Service',v:'Azure AD (legacy)'},
+        {k:'Categories',v:'SignInLogs, AuditLogs'},
+        {k:'Method',v:'Diagnostic Settings → Event Hub'},
+        {info:'ℹ For modern tenants, prefer microsoft-entra-id parser'},
+      ]},
+      {type:'fn-col',icon:'⚡',lbl:'Azure Event Hub',typ:'Dedicated hub',rows:[
+        {k:'Hub Name',v:'azure-ad-logs (AAD logs ONLY)'},
+        {k:'Tier',v:'Standard+ required'},
+      ]},
+      {type:'fn-cr',icon:'⚙️',lbl:'Cribl Stream',typ:'Event Hubs Source',rows:[
+        {k:'Source',v:'Azure Event Hubs Source',link:'https://docs.cribl.io/stream/sources-azure-event-hubs/'},
+        {k:'Group ID',v:'cribl-azure-ad (unique)'},
+        {k:'Pipeline',v:'Event Breaker Fn → Eval timestamp'},
+      ]},
+      {type:'fn-cs',icon:'🔴',lbl:'CrowdStrike NG SIEM',typ:'Cribl Connector → HEC',rows:[
+        {k:'Parser',v:'microsoft-azure-ad'},
+        {k:'HEC',v:'Auto-created → paste into Cribl dest'},
+        {good:'✓ Parser supported · Data ingest active'},
+      ]},
+    ]
+  },
+
+  { id:'azure-nsg', grp:'Azure Platform', icon:'🧱', name:'Microsoft Azure NSG',
+    parser:'microsoft-azure-nsg', method:'hub',
+    ingest:true, investigate:true,
+    desc:'Azure Network Security Group flow logs capture allowed and denied network traffic flows. Used for network forensics, lateral movement detection, and compliance. NSG Flow Logs v2 are streamed via Diagnostic Settings to a dedicated Event Hub. The Azure VNet Flow Event Breaker in Cribl handles the nested flow record structure.',
+    msSteps:[
+      ['Enable NSG Flow Logs v2: Azure Portal › Network Watcher › NSG flow logs › Create.','https://learn.microsoft.com/en-us/azure/network-watcher/network-watcher-nsg-flow-logging-portal','NSG flow logs v2 recommended'],
+      ['Create dedicated Event Hub: e.g. azure-nsg-flows (Standard+ tier).','https://learn.microsoft.com/en-us/azure/event-hubs/event-hubs-create','Dedicated hub for NSG flows only'],
+      ['Configure Diagnostic Settings on the NSG resource to stream flow logs to the azure-nsg-flows hub.','https://learn.microsoft.com/en-us/azure/network-watcher/network-watcher-nsg-flow-logging-portal','Route to Event Hub'],
+      ['Copy Event Hub Hostname and Connection String Primary Key.','https://learn.microsoft.com/en-us/azure/event-hubs/event-hubs-get-connection-string','Credentials for Cribl'],
+    ],
+    criblSteps:[
+      ['Create Azure Event Hubs Source · Hub: azure-nsg-flows · Group ID: cribl-azure-nsg.','https://docs.cribl.io/stream/sources-azure-event-hubs/','Unique Group ID'],
+      ['SASL PLAIN · Validate Certs: OFF.','https://docs.cribl.io/stream/sources-azure-event-hubs/','Standard auth'],
+      ['In pipeline: use the Azure VNet Flow Event Breaker to automatically unroll and structure nested flow records.','https://docs.cribl.io/stream/event-breaker-type-azure-vnet-flow/','Specialised breaker for flow data'],
+      ['Route to NG SIEM destination with PQ enabled.','https://docs.cribl.io/stream/destinations-crowdstrike-next-gen-siem/','Enable PQ'],
+    ],
+    csSteps:[
+      ['Create Cribl Data Connector · Parser: microsoft-azure-nsg.','https://docs.cribl.io/stream/destinations-crowdstrike-next-gen-siem/','One connector'],
+      ['Generate API key → configure destination → Commit & Deploy.','https://docs.cribl.io/stream/destinations-crowdstrike-next-gen-siem/','HEC auto-created'],
+    ],
+    flowNodes:[
+      {type:'fn-ms',icon:'🧱',lbl:'Microsoft',typ:'Azure NSG Flow Logs',rows:[
+        {k:'Log Type',v:'NSG Flow Logs v2'},
+        {k:'Method',v:'Diagnostic Settings → Event Hub'},
+      ]},
+      {type:'fn-col',icon:'⚡',lbl:'Azure Event Hub',typ:'Dedicated hub',rows:[
+        {k:'Hub Name',v:'azure-nsg-flows (NSG logs ONLY)'},
+        {k:'Tier',v:'Standard+ required'},
+      ]},
+      {type:'fn-cr',icon:'⚙️',lbl:'Cribl Stream',typ:'Event Hubs Source',rows:[
+        {k:'Source',v:'Azure Event Hubs Source',link:'https://docs.cribl.io/stream/sources-azure-event-hubs/'},
+        {k:'Group ID',v:'cribl-azure-nsg (unique)'},
+        {k:'Breaker',v:'Azure VNet Flow Event Breaker',link:'https://docs.cribl.io/stream/event-breaker-type-azure-vnet-flow/'},
+      ]},
+      {type:'fn-cs',icon:'🔴',lbl:'CrowdStrike NG SIEM',typ:'Cribl Connector → HEC',rows:[
+        {k:'Parser',v:'microsoft-azure-nsg'},
+        {k:'HEC',v:'Auto-created → paste into Cribl dest'},
+        {good:'✓ Parser supported · Data ingest active'},
+      ]},
+    ]
+  },
+
+  { id:'azure-storage', grp:'Azure Platform', icon:'🗃️', name:'Microsoft Azure Storage',
+    parser:'microsoft-azure-storage', method:'hub',
+    ingest:true, investigate:true,
+    desc:'Azure Storage account diagnostic logs capture read, write, and delete operations against Blob, Queue, Table, and File storage. Useful for detecting data exfiltration, unauthorised access, and storage policy violations. Streamed via Diagnostic Settings to a dedicated Event Hub.',
+    msSteps:[
+      ['In Azure Portal: Storage Account › Monitoring › Diagnostic Settings › Add.','https://learn.microsoft.com/en-us/azure/storage/common/manage-storage-analytics-logs','Enable StorageRead, StorageWrite, StorageDelete categories'],
+      ['Create dedicated Event Hub: e.g. azure-storage-logs (Standard+ tier).','https://learn.microsoft.com/en-us/azure/event-hubs/event-hubs-create','Dedicated hub'],
+      ['Route diagnostic logs to the azure-storage-logs hub.','https://learn.microsoft.com/en-us/azure/storage/common/manage-storage-analytics-logs','Select all relevant categories'],
+      ['Copy Event Hub Hostname and Connection String Primary Key.','https://learn.microsoft.com/en-us/azure/event-hubs/event-hubs-get-connection-string','Credentials for Cribl'],
+    ],
+    criblSteps:[
+      ['Create Azure Event Hubs Source · Hub: azure-storage-logs · Group ID: cribl-azure-storage.','https://docs.cribl.io/stream/sources-azure-event-hubs/','Unique Group ID'],
+      ['Pipeline: Event Breaker Function → Eval timestamp.','https://docs.cribl.io/stream/event-breaker-function/','Standard pipeline'],
+      ['Route to NG SIEM destination with PQ enabled.','https://docs.cribl.io/stream/destinations-crowdstrike-next-gen-siem/','Enable PQ'],
+    ],
+    csSteps:[
+      ['Create Cribl Data Connector · Parser: microsoft-azure-storage.','https://docs.cribl.io/stream/destinations-crowdstrike-next-gen-siem/','One connector'],
+      ['Generate API key → configure destination → Commit & Deploy.','https://docs.cribl.io/stream/destinations-crowdstrike-next-gen-siem/','HEC auto-created'],
+    ],
+    flowNodes:[
+      {type:'fn-ms',icon:'🗃️',lbl:'Microsoft',typ:'Azure Storage',rows:[
+        {k:'Categories',v:'StorageRead, StorageWrite\nStorageDelete'},
+        {k:'Method',v:'Diagnostic Settings → Event Hub'},
+      ]},
+      {type:'fn-col',icon:'⚡',lbl:'Azure Event Hub',typ:'Dedicated hub',rows:[
+        {k:'Hub Name',v:'azure-storage-logs (Storage ONLY)'},
+        {k:'Tier',v:'Standard+ required'},
+      ]},
+      {type:'fn-cr',icon:'⚙️',lbl:'Cribl Stream',typ:'Event Hubs Source',rows:[
+        {k:'Source',v:'Azure Event Hubs Source',link:'https://docs.cribl.io/stream/sources-azure-event-hubs/'},
+        {k:'Group ID',v:'cribl-azure-storage (unique)'},
+      ]},
+      {type:'fn-cs',icon:'🔴',lbl:'CrowdStrike NG SIEM',typ:'Cribl Connector → HEC',rows:[
+        {k:'Parser',v:'microsoft-azure-storage'},
+        {k:'HEC',v:'Auto-created → paste into Cribl dest'},
+        {good:'✓ Parser supported · Data ingest active'},
+      ]},
+    ]
+  },
+
+  { id:'azure-vms', grp:'Azure Platform', icon:'🖥️', name:'Microsoft Azure VMs',
+    parser:'microsoft-azure-vm', method:'hub',
+    ingest:true, investigate:true,
+    desc:'Azure Virtual Machine diagnostic logs include guest OS metrics, boot diagnostics, performance counters, and Windows/Linux event logs forwarded from Azure VMs. Streamed via Azure Monitor Diagnostic Settings or the Azure Monitor Agent to an Event Hub.',
+    msSteps:[
+      ['Install Azure Monitor Agent on VMs and configure a Data Collection Rule (DCR).','https://learn.microsoft.com/en-us/azure/azure-monitor/agents/azure-monitor-agent-overview','Azure Monitor Agent replaces legacy Log Analytics agent'],
+      ['Create dedicated Event Hub: e.g. azure-vm-logs (Standard+ tier).','https://learn.microsoft.com/en-us/azure/event-hubs/event-hubs-create','Dedicated hub for VM logs only'],
+      ['Configure DCR to route VM events to the azure-vm-logs Event Hub.','https://learn.microsoft.com/en-us/azure/azure-monitor/essentials/data-collection-rule-overview','Data Collection Rule targets Event Hub'],
+      ['Copy Event Hub Hostname and Connection String Primary Key.','https://learn.microsoft.com/en-us/azure/event-hubs/event-hubs-get-connection-string','Credentials for Cribl'],
+    ],
+    criblSteps:[
+      ['Create Azure Event Hubs Source · Hub: azure-vm-logs · Group ID: cribl-azure-vms.','https://docs.cribl.io/stream/sources-azure-event-hubs/','Unique Group ID'],
+      ['Pipeline: Event Breaker Function → Eval timestamp.','https://docs.cribl.io/stream/event-breaker-function/','Standard pipeline'],
+      ['Route to NG SIEM destination with PQ enabled.','https://docs.cribl.io/stream/destinations-crowdstrike-next-gen-siem/','Enable PQ'],
+    ],
+    csSteps:[
+      ['Create Cribl Data Connector · Parser: microsoft-azure-vm.','https://docs.cribl.io/stream/destinations-crowdstrike-next-gen-siem/','One connector'],
+      ['Generate API key → configure destination → Commit & Deploy.','https://docs.cribl.io/stream/destinations-crowdstrike-next-gen-siem/','HEC auto-created'],
+    ],
+    flowNodes:[
+      {type:'fn-ms',icon:'🖥️',lbl:'Microsoft',typ:'Azure Virtual Machines',rows:[
+        {k:'Agent',v:'Azure Monitor Agent + DCR'},
+        {k:'Log Types',v:'Guest OS events, boot diag\nPerformance counters'},
+        {k:'Method',v:'DCR → Event Hub'},
+      ]},
+      {type:'fn-col',icon:'⚡',lbl:'Azure Event Hub',typ:'Dedicated hub',rows:[
+        {k:'Hub Name',v:'azure-vm-logs (VM logs ONLY)'},
+        {k:'Tier',v:'Standard+ required'},
+      ]},
+      {type:'fn-cr',icon:'⚙️',lbl:'Cribl Stream',typ:'Event Hubs Source',rows:[
+        {k:'Source',v:'Azure Event Hubs Source',link:'https://docs.cribl.io/stream/sources-azure-event-hubs/'},
+        {k:'Group ID',v:'cribl-azure-vms (unique)'},
+      ]},
+      {type:'fn-cs',icon:'🔴',lbl:'CrowdStrike NG SIEM',typ:'Cribl Connector → HEC',rows:[
+        {k:'Parser',v:'microsoft-azure-vm'},
+        {k:'HEC',v:'Auto-created → paste into Cribl dest'},
+        {good:'✓ Parser supported · Data ingest active'},
+      ]},
+    ]
+  },
+
+  { id:'azure-vnet', grp:'Azure Platform', icon:'🔗', name:'Microsoft Azure VNET',
+    parser:'microsoft-azure-vnet', method:'hub',
+    ingest:true, investigate:true,
+    desc:'Azure Virtual Network flow logs capture traffic flowing through VNETs including source/destination IP, port, protocol, and bytes. Complements NSG flow logs with broader network-level visibility. Uses the Azure VNet Flow Event Breaker in Cribl for proper record unrolling.',
+    msSteps:[
+      ['Enable VNet flow logs via Azure Network Watcher › Flow logs.','https://learn.microsoft.com/en-us/azure/network-watcher/vnet-flow-logs-overview','VNet flow logs (distinct from NSG flow logs)'],
+      ['Create dedicated Event Hub: e.g. azure-vnet-flows (Standard+ tier).','https://learn.microsoft.com/en-us/azure/event-hubs/event-hubs-create','Dedicated hub'],
+      ['Configure flow log settings to stream to the azure-vnet-flows hub.','https://learn.microsoft.com/en-us/azure/network-watcher/vnet-flow-logs-overview','Route to Event Hub'],
+      ['Copy Event Hub Hostname and Connection String Primary Key.','https://learn.microsoft.com/en-us/azure/event-hubs/event-hubs-get-connection-string','Credentials for Cribl'],
+    ],
+    criblSteps:[
+      ['Create Azure Event Hubs Source · Hub: azure-vnet-flows · Group ID: cribl-azure-vnet.','https://docs.cribl.io/stream/sources-azure-event-hubs/','Unique Group ID'],
+      ['Use the Azure VNet Flow Event Breaker in-pipeline to unroll nested flow records automatically.','https://docs.cribl.io/stream/event-breaker-type-azure-vnet-flow/','Specialised breaker for VNet flows'],
+      ['Route to NG SIEM destination with PQ enabled.','https://docs.cribl.io/stream/destinations-crowdstrike-next-gen-siem/','Enable PQ'],
+    ],
+    csSteps:[
+      ['Create Cribl Data Connector · Parser: microsoft-azure-vnet.','https://docs.cribl.io/stream/destinations-crowdstrike-next-gen-siem/','One connector'],
+      ['Generate API key → configure destination → Commit & Deploy.','https://docs.cribl.io/stream/destinations-crowdstrike-next-gen-siem/','HEC auto-created'],
+    ],
+    flowNodes:[
+      {type:'fn-ms',icon:'🔗',lbl:'Microsoft',typ:'Azure VNET Flow Logs',rows:[
+        {k:'Log Type',v:'VNet flow logs (not NSG)'},
+        {k:'Data',v:'Src/dst IP, port, protocol, bytes'},
+        {k:'Method',v:'Network Watcher → Event Hub'},
+      ]},
+      {type:'fn-col',icon:'⚡',lbl:'Azure Event Hub',typ:'Dedicated hub',rows:[
+        {k:'Hub Name',v:'azure-vnet-flows (VNET ONLY)'},
+        {k:'Tier',v:'Standard+ required'},
+      ]},
+      {type:'fn-cr',icon:'⚙️',lbl:'Cribl Stream',typ:'Event Hubs Source',rows:[
+        {k:'Source',v:'Azure Event Hubs Source',link:'https://docs.cribl.io/stream/sources-azure-event-hubs/'},
+        {k:'Breaker',v:'Azure VNet Flow Event Breaker',link:'https://docs.cribl.io/stream/event-breaker-type-azure-vnet-flow/'},
+      ]},
+      {type:'fn-cs',icon:'🔴',lbl:'CrowdStrike NG SIEM',typ:'Cribl Connector → HEC',rows:[
+        {k:'Parser',v:'microsoft-azure-vnet'},
+        {k:'HEC',v:'Auto-created → paste into Cribl dest'},
+        {good:'✓ Parser supported · Data ingest active'},
+      ]},
+    ]
+  },
+
+  { id:'azure-vpn', grp:'Azure Platform', icon:'🔒', name:'Microsoft Azure VPN Gateway',
+    parser:'microsoft-azure-vpn', method:'hub',
+    ingest:true, investigate:true,
+    desc:'Azure VPN Gateway logs capture tunnel connect/disconnect events, IKE negotiations, BGP route changes, and packet drop reasons. Important for monitoring hybrid connectivity and detecting VPN-based access anomalies.',
+    msSteps:[
+      ['In Azure Portal: VPN Gateway resource › Monitoring › Diagnostic Settings › Add.','https://learn.microsoft.com/en-us/azure/vpn-gateway/troubleshoot-vpn-with-azure-diagnostics','Enable GatewayDiagnosticLog, TunnelDiagnosticLog, RouteDiagnosticLog'],
+      ['Create dedicated Event Hub: e.g. azure-vpn-logs (Standard+ tier).','https://learn.microsoft.com/en-us/azure/event-hubs/event-hubs-create','Dedicated hub for VPN logs only'],
+      ['Route selected diagnostic categories to the azure-vpn-logs hub.','https://learn.microsoft.com/en-us/azure/vpn-gateway/troubleshoot-vpn-with-azure-diagnostics','Select all relevant log categories'],
+      ['Copy Event Hub Hostname and Connection String Primary Key.','https://learn.microsoft.com/en-us/azure/event-hubs/event-hubs-get-connection-string','Credentials for Cribl'],
+    ],
+    criblSteps:[
+      ['Create Azure Event Hubs Source · Hub: azure-vpn-logs · Group ID: cribl-azure-vpn.','https://docs.cribl.io/stream/sources-azure-event-hubs/','Unique Group ID'],
+      ['Pipeline: Event Breaker Function → Eval timestamp.','https://docs.cribl.io/stream/event-breaker-function/','Standard pipeline'],
+      ['Route to NG SIEM destination with PQ enabled.','https://docs.cribl.io/stream/destinations-crowdstrike-next-gen-siem/','Enable PQ'],
+    ],
+    csSteps:[
+      ['Create Cribl Data Connector · Parser: microsoft-azure-vpn.','https://docs.cribl.io/stream/destinations-crowdstrike-next-gen-siem/','One connector'],
+      ['Generate API key → configure destination → Commit & Deploy.','https://docs.cribl.io/stream/destinations-crowdstrike-next-gen-siem/','HEC auto-created'],
+    ],
+    flowNodes:[
+      {type:'fn-ms',icon:'🔒',lbl:'Microsoft',typ:'Azure VPN Gateway',rows:[
+        {k:'Log Types',v:'Tunnel events, IKE negotiations\nBGP routes, packet drops'},
+        {k:'Method',v:'Diagnostic Settings → Event Hub'},
+      ]},
+      {type:'fn-col',icon:'⚡',lbl:'Azure Event Hub',typ:'Dedicated hub',rows:[
+        {k:'Hub Name',v:'azure-vpn-logs (VPN logs ONLY)'},
+        {k:'Tier',v:'Standard+ required'},
+      ]},
+      {type:'fn-cr',icon:'⚙️',lbl:'Cribl Stream',typ:'Event Hubs Source',rows:[
+        {k:'Source',v:'Azure Event Hubs Source',link:'https://docs.cribl.io/stream/sources-azure-event-hubs/'},
+        {k:'Group ID',v:'cribl-azure-vpn (unique)'},
+      ]},
+      {type:'fn-cs',icon:'🔴',lbl:'CrowdStrike NG SIEM',typ:'Cribl Connector → HEC',rows:[
+        {k:'Parser',v:'microsoft-azure-vpn'},
+        {k:'HEC',v:'Auto-created → paste into Cribl dest'},
+        {good:'✓ Parser supported · Data ingest active'},
+      ]},
+    ]
+  },
+
+  { id:'azure-waf', grp:'Azure Platform', icon:'🛡️', name:'Microsoft Azure WAF',
+    parser:'microsoft-azure-waf', method:'hub',
+    ingest:true, investigate:true,
+    desc:'Azure Web Application Firewall logs capture allow/block decisions for HTTP/S traffic, rule matches, custom rule evaluations, and bot protection hits. Covers WAF on Application Gateway, Front Door, and CDN. Diagnostic Settings stream logs to Event Hub.',
+    msSteps:[
+      ['In Azure Portal: Application Gateway / Front Door resource › Monitoring › Diagnostic Settings › Add.','https://learn.microsoft.com/en-us/azure/web-application-firewall/ag/application-gateway-waf-logs','Enable ApplicationGatewayFirewallLog or FrontDoorWebApplicationFirewallLog'],
+      ['Create dedicated Event Hub: e.g. azure-waf-logs (Standard+ tier).','https://learn.microsoft.com/en-us/azure/event-hubs/event-hubs-create','Dedicated hub for WAF logs only'],
+      ['Route WAF diagnostic logs to the azure-waf-logs hub.','https://learn.microsoft.com/en-us/azure/web-application-firewall/ag/application-gateway-waf-logs','Select firewall log category'],
+      ['Copy Event Hub Hostname and Connection String Primary Key.','https://learn.microsoft.com/en-us/azure/event-hubs/event-hubs-get-connection-string','Credentials for Cribl'],
+    ],
+    criblSteps:[
+      ['Create Azure Event Hubs Source · Hub: azure-waf-logs · Group ID: cribl-azure-waf.','https://docs.cribl.io/stream/sources-azure-event-hubs/','Unique Group ID'],
+      ['Pipeline: Event Breaker Function → Eval timestamp.','https://docs.cribl.io/stream/event-breaker-function/','Standard pipeline'],
+      ['Route to NG SIEM destination with PQ enabled.','https://docs.cribl.io/stream/destinations-crowdstrike-next-gen-siem/','Enable PQ'],
+    ],
+    csSteps:[
+      ['Create Cribl Data Connector · Parser: microsoft-azure-waf.','https://docs.cribl.io/stream/destinations-crowdstrike-next-gen-siem/','One connector'],
+      ['Generate API key → configure destination → Commit & Deploy.','https://docs.cribl.io/stream/destinations-crowdstrike-next-gen-siem/','HEC auto-created'],
+    ],
+    flowNodes:[
+      {type:'fn-ms',icon:'🛡️',lbl:'Microsoft',typ:'Azure WAF',rows:[
+        {k:'Products',v:'App Gateway WAF\nFront Door WAF · CDN WAF'},
+        {k:'Log Types',v:'Allow/block decisions\nRule matches, bot protection'},
+        {k:'Method',v:'Diagnostic Settings → Event Hub'},
+      ]},
+      {type:'fn-col',icon:'⚡',lbl:'Azure Event Hub',typ:'Dedicated hub',rows:[
+        {k:'Hub Name',v:'azure-waf-logs (WAF logs ONLY)'},
+        {k:'Tier',v:'Standard+ required'},
+      ]},
+      {type:'fn-cr',icon:'⚙️',lbl:'Cribl Stream',typ:'Event Hubs Source',rows:[
+        {k:'Source',v:'Azure Event Hubs Source',link:'https://docs.cribl.io/stream/sources-azure-event-hubs/'},
+        {k:'Group ID',v:'cribl-azure-waf (unique)'},
+      ]},
+      {type:'fn-cs',icon:'🔴',lbl:'CrowdStrike NG SIEM',typ:'Cribl Connector → HEC',rows:[
+        {k:'Parser',v:'microsoft-azure-waf'},
+        {k:'HEC',v:'Auto-created → paste into Cribl dest'},
+        {good:'✓ Parser supported · Data ingest active'},
+      ]},
+    ]
+  },
+
+  { id:'def-cloud', grp:'Defender Security Services', icon:'☁️', name:'Microsoft Defender for Cloud',
+    parser:'microsoft-defender-cloud', method:'hub',
+    ingest:true, investigate:true,
+    desc:'Microsoft Defender for Cloud (formerly Azure Security Center) monitors Azure workloads for vulnerabilities, misconfigurations, and active threats. Security alerts, recommendations, and regulatory compliance assessments are exported via Continuous Export to an Event Hub.',
+    msSteps:[
+      ['In Defender for Cloud: Environment Settings › select subscription › Continuous Export.','https://learn.microsoft.com/en-us/azure/defender-for-cloud/continuous-export','Continuous Export configuration'],
+      ['Enable Security Alerts and Security Recommendations export targets.','https://learn.microsoft.com/en-us/azure/defender-for-cloud/continuous-export','Select all alert severities'],
+      ['Create dedicated Event Hub: e.g. defender-cloud-alerts (Standard+ tier). Set as the export target.','https://learn.microsoft.com/en-us/azure/event-hubs/event-hubs-create','Dedicated hub for Defender for Cloud only'],
+      ['Grant Azure Event Hubs Data Sender role to Windows Azure Security Resource Provider on the Event Hub.','https://learn.microsoft.com/en-us/azure/defender-for-cloud/continuous-export','Required RBAC assignment for export'],
+      ['Copy Event Hub Hostname and Connection String Primary Key.','https://learn.microsoft.com/en-us/azure/event-hubs/event-hubs-get-connection-string','Credentials for Cribl'],
+    ],
+    criblSteps:[
+      ['Create Azure Event Hubs Source · Hub: defender-cloud-alerts · Group ID: cribl-def-cloud.','https://docs.cribl.io/stream/sources-azure-event-hubs/','Unique Group ID'],
+      ['Pipeline: Event Breaker Function → Eval timestamp.','https://docs.cribl.io/stream/event-breaker-function/','Standard pipeline'],
+      ['Route to NG SIEM destination with PQ enabled.','https://docs.cribl.io/stream/destinations-crowdstrike-next-gen-siem/','Enable PQ'],
+    ],
+    csSteps:[
+      ['Create Cribl Data Connector · Parser: microsoft-defender-cloud.','https://docs.cribl.io/stream/destinations-crowdstrike-next-gen-siem/','One connector'],
+      ['Generate API key → configure destination → Commit & Deploy.','https://docs.cribl.io/stream/destinations-crowdstrike-next-gen-siem/','HEC auto-created'],
+      ['Validate: Event Search → Source: Third Party.','https://docs.cribl.io/stream/destinations-crowdstrike-next-gen-siem/','Confirm ingestion'],
+    ],
+    flowNodes:[
+      {type:'fn-ms',icon:'☁️',lbl:'Microsoft',typ:'Defender for Cloud',rows:[
+        {k:'Product',v:'Microsoft Defender for Cloud'},
+        {k:'Export',v:'Continuous Export → Event Hub'},
+        {k:'Data',v:'Security Alerts, Recommendations\nCompliance assessments'},
+        {warn:'⚠ Grant Event Hubs Data Sender role to Windows Azure Security Resource Provider'},
+      ]},
+      {type:'fn-col',icon:'⚡',lbl:'Azure Event Hub',typ:'Dedicated hub',rows:[
+        {k:'Hub Name',v:'defender-cloud-alerts (Def Cloud ONLY)'},
+        {k:'Tier',v:'Standard+ required'},
+      ]},
+      {type:'fn-cr',icon:'⚙️',lbl:'Cribl Stream',typ:'Event Hubs Source',rows:[
+        {k:'Source',v:'Azure Event Hubs Source',link:'https://docs.cribl.io/stream/sources-azure-event-hubs/'},
+        {k:'Group ID',v:'cribl-def-cloud (unique)'},
+      ]},
+      {type:'fn-cs',icon:'🔴',lbl:'CrowdStrike NG SIEM',typ:'Cribl Connector → HEC',rows:[
+        {k:'Parser',v:'microsoft-defender-cloud'},
+        {k:'HEC',v:'Auto-created → paste into Cribl dest'},
+        {good:'✓ Parser supported · Data ingest active'},
+      ]},
+    ]
+  },
+
+  { id:'def-cloud-apps', grp:'Defender Security Services', icon:'🌩️', name:'Microsoft Defender for Cloud Apps',
+    parser:'microsoft-defender-cloudapps', method:'hub',
+    ingest:true, investigate:true,
+    desc:'Microsoft Defender for Cloud Apps (formerly MCAS) is a Cloud Access Security Broker (CASB) providing visibility into cloud app usage, anomaly detection, and data loss prevention across SaaS applications. Activity logs and alerts are streamed via Event Hub.',
+    msSteps:[
+      ['In Microsoft Defender for Cloud Apps portal: Settings › Security extensions › SIEM agents, or use the Streaming API.','https://learn.microsoft.com/en-us/defender-cloud-apps/siem','Configure SIEM integration'],
+      ['Create dedicated Event Hub: e.g. defender-cloud-apps (Standard+ tier).','https://learn.microsoft.com/en-us/azure/event-hubs/event-hubs-create','Dedicated hub'],
+      ['Configure the Cloud Apps streaming to route alerts and activity logs to the defender-cloud-apps hub.','https://learn.microsoft.com/en-us/defender-cloud-apps/siem','Route to Event Hub'],
+      ['Copy Event Hub Hostname and Connection String Primary Key.','https://learn.microsoft.com/en-us/azure/event-hubs/event-hubs-get-connection-string','Credentials for Cribl'],
+    ],
+    criblSteps:[
+      ['Create Azure Event Hubs Source · Hub: defender-cloud-apps · Group ID: cribl-def-cloudapps.','https://docs.cribl.io/stream/sources-azure-event-hubs/','Unique Group ID'],
+      ['Pipeline: Event Breaker Function → Eval timestamp.','https://docs.cribl.io/stream/event-breaker-function/','Standard pipeline'],
+      ['Route to NG SIEM destination with PQ enabled.','https://docs.cribl.io/stream/destinations-crowdstrike-next-gen-siem/','Enable PQ'],
+    ],
+    csSteps:[
+      ['Create Cribl Data Connector · Parser: microsoft-defender-cloudapps.','https://docs.cribl.io/stream/destinations-crowdstrike-next-gen-siem/','One connector'],
+      ['Generate API key → configure destination → Commit & Deploy.','https://docs.cribl.io/stream/destinations-crowdstrike-next-gen-siem/','HEC auto-created'],
+    ],
+    flowNodes:[
+      {type:'fn-ms',icon:'🌩️',lbl:'Microsoft',typ:'Defender for Cloud Apps',rows:[
+        {k:'Product',v:'Microsoft CASB (formerly MCAS)'},
+        {k:'Data',v:'SaaS activity logs, anomaly alerts\nDLP policy hits, OAuth app risk'},
+        {k:'Method',v:'Streaming API → Event Hub'},
+      ]},
+      {type:'fn-col',icon:'⚡',lbl:'Azure Event Hub',typ:'Dedicated hub',rows:[
+        {k:'Hub Name',v:'defender-cloud-apps (MDCA ONLY)'},
+        {k:'Tier',v:'Standard+ required'},
+      ]},
+      {type:'fn-cr',icon:'⚙️',lbl:'Cribl Stream',typ:'Event Hubs Source',rows:[
+        {k:'Source',v:'Azure Event Hubs Source',link:'https://docs.cribl.io/stream/sources-azure-event-hubs/'},
+        {k:'Group ID',v:'cribl-def-cloudapps (unique)'},
+      ]},
+      {type:'fn-cs',icon:'🔴',lbl:'CrowdStrike NG SIEM',typ:'Cribl Connector → HEC',rows:[
+        {k:'Parser',v:'microsoft-defender-cloudapps'},
+        {k:'HEC',v:'Auto-created → paste into Cribl dest'},
+        {good:'✓ Parser supported · Data ingest active'},
+      ]},
+    ]
+  },
+
+  { id:'def-xdr-alerts', grp:'Defender Security Services', icon:'🚨', name:'Microsoft Defender XDR Alerts & Incidents',
+    parser:'microsoft-defendero365-graphapi', method:'api',
+    ingest:true, investigate:true,
+    desc:'Microsoft Defender XDR Alerts and Incidents aggregates correlated security alerts from Defender for Endpoint, Defender for Office 365, Defender for Identity, and Defender for Cloud Apps into unified incidents. Pulled via the Microsoft Graph Security API.',
+    msSteps:[
+      ['Register an Azure AD App Registration in Entra ID.','https://learn.microsoft.com/en-us/graph/auth-register-app-v2','Portal: Entra ID › App Registrations'],
+      ['Grant Application permission: SecurityAlert.Read.All and SecurityIncident.Read.All (Microsoft Graph).','https://learn.microsoft.com/en-us/graph/permissions-reference','Application type — not Delegated'],
+      ['Note Application (client) ID, Directory (tenant) ID, and create a Client Secret.','https://learn.microsoft.com/en-us/azure/active-directory/develop/howto-create-service-principal-portal','Needed for Cribl REST Collector config'],
+    ],
+    criblSteps:[
+      ['Use a REST Collector targeting the Microsoft Graph Security API endpoint: https://graph.microsoft.com/v1.0/security/alerts_v2','https://docs.cribl.io/stream/usecase-rest-ms-graph/','docs.cribl.io/stream/usecase-rest-ms-graph'],
+      ['Authenticate with OAuth using the App Registration credentials (tenant ID, client ID, client secret).','https://docs.cribl.io/stream/usecase-rest-ms-graph/','OAuth client credentials flow'],
+      ['Schedule the collector to poll at regular intervals. Filter by updatedDateTime for incremental collection.','https://docs.cribl.io/stream/collectors-rest/','Incremental polling recommended'],
+      ['Route to NG SIEM destination with PQ enabled.','https://docs.cribl.io/stream/destinations-crowdstrike-next-gen-siem/','Enable PQ'],
+    ],
+    csSteps:[
+      ['Create Cribl Data Connector · Vendor: Microsoft · Product: Defender XDR Alerts · Parser: microsoft-defendero365-graphapi.','https://docs.cribl.io/stream/destinations-crowdstrike-next-gen-siem/','Same parser as Defender O365 alerts'],
+      ['Generate API key → configure Cribl NG SIEM destination → Commit & Deploy.','https://docs.cribl.io/stream/destinations-crowdstrike-next-gen-siem/','HEC auto-created'],
+    ],
+    flowNodes:[
+      {type:'fn-ms',icon:'🚨',lbl:'Microsoft',typ:'Defender XDR Alerts API',rows:[
+        {k:'API',v:'Microsoft Graph Security API'},
+        {k:'Endpoint',v:'/v1.0/security/alerts_v2\n/v1.0/security/incidents'},
+        {k:'Method',v:'Graph API pull (REST Collector)'},
+      ]},
+      {type:'fn-col',icon:'🔌',lbl:'App Registration',typ:'Azure AD App (API Pull)',rows:[
+        {k:'Permissions',v:'SecurityAlert.Read.All\nSecurityIncident.Read.All (Application)'},
+        {k:'No Event Hub',v:'Pull-based — no hub needed'},
+      ]},
+      {type:'fn-cr',icon:'⚙️',lbl:'Cribl Stream',typ:'REST Collector',rows:[
+        {k:'Collector',v:'REST Collector → Graph API',link:'https://docs.cribl.io/stream/usecase-rest-ms-graph/'},
+        {k:'Auth',v:'OAuth client credentials'},
+        {info:'ℹ Use updatedDateTime filter for incremental polling'},
+      ]},
+      {type:'fn-cs',icon:'🔴',lbl:'CrowdStrike NG SIEM',typ:'Cribl Connector → HEC',rows:[
+        {k:'Parser',v:'microsoft-defendero365-graphapi'},
+        {k:'HEC',v:'Auto-created → paste into Cribl dest'},
+        {good:'✓ Parser supported · Data ingest active'},
+      ]},
+    ]
+  },
+
+  { id:'exchange-online', grp:'M365 / Office 365', icon:'📧', name:'Microsoft Exchange Online',
+    parser:'microsoft-exchange', method:'api',
+    ingest:true, investigate:true,
+    desc:'Exchange Online audit logs capture mailbox access, message send/receive, admin actions, and mail flow events via the Office 365 Management Activity API. The Audit.Exchange content type covers all Exchange Online audit records.',
+    msSteps:[
+      ['Register an Azure AD App Registration with ActivityFeed.Read permission (Application type).','https://learn.microsoft.com/en-us/graph/auth-register-app-v2','Entra ID › App Registrations'],
+      ['Start the Audit.Exchange subscription via curl before enabling in Cribl.','https://docs.cribl.io/stream/sources-office-365-activity/','Cribl cannot start O365 subscriptions'],
+      ['Note Application (client) ID, Directory (tenant) ID, and Client Secret.','https://learn.microsoft.com/en-us/azure/active-directory/develop/howto-create-service-principal-portal','Needed for Cribl source config'],
+    ],
+    criblSteps:[
+      ['Create O365 Activity Source: Data › Sources › Office 365 › Activity.','https://docs.cribl.io/stream/sources-office-365-activity/','docs.cribl.io/stream/sources-office-365-activity'],
+      ['Enable content type: Audit.Exchange. Set Ingestion lag > 0 (recommend 120 min) to handle Microsoft delivery delay.','https://docs.cribl.io/stream/sources-office-365-activity/','Each type = separate scheduled Collection job'],
+      ['Route to NG SIEM destination with PQ enabled.','https://docs.cribl.io/stream/destinations-crowdstrike-next-gen-siem/','Enable PQ'],
+    ],
+    csSteps:[
+      ['Create Cribl Data Connector · Parser: microsoft-exchange.','https://docs.cribl.io/stream/destinations-crowdstrike-next-gen-siem/','One connector'],
+      ['Generate API key → configure destination → Commit & Deploy.','https://docs.cribl.io/stream/destinations-crowdstrike-next-gen-siem/','HEC auto-created'],
+    ],
+    flowNodes:[
+      {type:'fn-ms',icon:'📧',lbl:'Microsoft',typ:'Exchange Online',rows:[
+        {k:'API',v:'O365 Management Activity API'},
+        {k:'Content Type',v:'Audit.Exchange'},
+        {k:'Delay',v:'60–90+ min delivery lag'},
+      ]},
+      {type:'fn-col',icon:'🔌',lbl:'App Registration',typ:'Azure AD App (API Pull)',rows:[
+        {k:'Permission',v:'ActivityFeed.Read (Application)'},
+        {warn:'⚠ Start Audit.Exchange subscription via curl before enabling in Cribl'},
+      ]},
+      {type:'fn-cr',icon:'⚙️',lbl:'Cribl Stream',typ:'O365 Activity Source',rows:[
+        {k:'Source',v:'O365 Activity Source',link:'https://docs.cribl.io/stream/sources-office-365-activity/'},
+        {k:'Ingestion Lag',v:'Set > 0 (recommend 120 min)'},
+      ]},
+      {type:'fn-cs',icon:'🔴',lbl:'CrowdStrike NG SIEM',typ:'Cribl Connector → HEC',rows:[
+        {k:'Parser',v:'microsoft-exchange'},
+        {k:'HEC',v:'Auto-created → paste into Cribl dest'},
+        {good:'✓ Parser supported · Data ingest active'},
+      ]},
+    ]
+  },
+
+  { id:'exchange-onprem', grp:'Windows Endpoint', icon:'📬', name:'Microsoft Exchange Server (On-Prem)',
+    parser:'microsoft-exchange-onprem', method:'wef',
+    ingest:true, investigate:true,
+    desc:'On-premises Exchange Server generates message tracking logs, IIS logs, protocol logs (SMTP, POP, IMAP), and Windows Event Logs. Forwarded to Cribl via WEF or Syslog from the Exchange server. Requires local agent or forwarder deployment.',
+    msSteps:[
+      ['Enable message tracking logs on Exchange Server (enabled by default). Location: %ExchangeInstallPath%TransportRoles\\Logs\\MessageTracking.','https://learn.microsoft.com/en-us/exchange/mail-flow/transport-logs/message-tracking','Exchange message tracking logs'],
+      ['Configure WEF subscriptions or a syslog forwarder on the Exchange server to push events to Cribl.','https://learn.microsoft.com/en-us/windows/security/threat-protection/use-windows-event-forwarding-to-assist-in-intrusion-detection','WEF or syslog forwarder'],
+    ],
+    criblSteps:[
+      ['Use WEF Source or Syslog Source in Cribl to receive forwarded Exchange logs.','https://docs.cribl.io/stream/sources-wef/','docs.cribl.io/stream/sources-wef'],
+      ['Alternatively use File Monitor Source for direct log file collection from accessible file shares.','https://docs.cribl.io/stream/sources-file-monitor/','docs.cribl.io/stream/sources-file-monitor'],
+      ['Route to NG SIEM destination with PQ enabled.','https://docs.cribl.io/stream/destinations-crowdstrike-next-gen-siem/','Enable PQ'],
+    ],
+    csSteps:[
+      ['Create Cribl Data Connector · Parser: microsoft-exchange-onprem.','https://docs.cribl.io/stream/destinations-crowdstrike-next-gen-siem/','One connector'],
+      ['Generate API key → configure destination → Commit & Deploy.','https://docs.cribl.io/stream/destinations-crowdstrike-next-gen-siem/','HEC auto-created'],
+    ],
+    flowNodes:[
+      {type:'fn-ms',icon:'📬',lbl:'Microsoft',typ:'Exchange Server (On-Prem)',rows:[
+        {k:'Log Types',v:'Message tracking, IIS logs\nProtocol logs (SMTP/POP/IMAP)'},
+        {k:'Method',v:'WEF or Syslog → Cribl'},
+      ]},
+      {type:'fn-col',icon:'📁',lbl:'WEF / Syslog',typ:'On-Prem Forwarder',rows:[
+        {k:'Option A',v:'Windows Event Forwarder'},
+        {k:'Option B',v:'Syslog forwarder / agent'},
+        {k:'Option C',v:'File Monitor (direct)'},
+      ]},
+      {type:'fn-cr',icon:'⚙️',lbl:'Cribl Stream',typ:'WEF / Syslog Source',rows:[
+        {k:'Source A',v:'WEF Source',link:'https://docs.cribl.io/stream/sources-wef/'},
+        {k:'Source B',v:'Syslog Source',link:'https://docs.cribl.io/stream/sources-syslog/'},
+      ]},
+      {type:'fn-cs',icon:'🔴',lbl:'CrowdStrike NG SIEM',typ:'Cribl Connector → HEC',rows:[
+        {k:'Parser',v:'microsoft-exchange-onprem'},
+        {k:'HEC',v:'Auto-created → paste into Cribl dest'},
+        {good:'✓ Parser supported · Data ingest active'},
+      ]},
+    ]
+  },
+
+  { id:'ms-intune', grp:'M365 / Office 365', icon:'📱', name:'Microsoft Intune',
+    parser:'microsoft-intune', method:'hub',
+    ingest:true, investigate:true,
+    desc:'Microsoft Intune audit logs capture device enrollment, compliance state changes, configuration profile assignments, and admin actions. Diagnostic Settings stream Intune audit logs to an Event Hub for collection by Cribl.',
+    msSteps:[
+      ['In Azure Portal: Intune › Tenant administration › Diagnostic settings › Add.','https://learn.microsoft.com/en-us/mem/intune/fundamentals/review-logs-using-azure-monitor','Intune Diagnostic Settings'],
+      ['Create dedicated Event Hub: e.g. intune-audit-logs (Standard+ tier).','https://learn.microsoft.com/en-us/azure/event-hubs/event-hubs-create','Dedicated hub for Intune only'],
+      ['Enable AuditLogs and/or OperationalLogs categories, route to the intune-audit-logs hub.','https://learn.microsoft.com/en-us/mem/intune/fundamentals/review-logs-using-azure-monitor','Select relevant log categories'],
+      ['Copy Event Hub Hostname and Connection String Primary Key.','https://learn.microsoft.com/en-us/azure/event-hubs/event-hubs-get-connection-string','Credentials for Cribl'],
+    ],
+    criblSteps:[
+      ['Create Azure Event Hubs Source · Hub: intune-audit-logs · Group ID: cribl-intune.','https://docs.cribl.io/stream/sources-azure-event-hubs/','Unique Group ID'],
+      ['Pipeline: Event Breaker Function → Eval timestamp.','https://docs.cribl.io/stream/event-breaker-function/','Standard pipeline'],
+      ['Route to NG SIEM destination with PQ enabled.','https://docs.cribl.io/stream/destinations-crowdstrike-next-gen-siem/','Enable PQ'],
+    ],
+    csSteps:[
+      ['Create Cribl Data Connector · Parser: microsoft-intune.','https://docs.cribl.io/stream/destinations-crowdstrike-next-gen-siem/','One connector'],
+      ['Generate API key → configure destination → Commit & Deploy.','https://docs.cribl.io/stream/destinations-crowdstrike-next-gen-siem/','HEC auto-created'],
+    ],
+    flowNodes:[
+      {type:'fn-ms',icon:'📱',lbl:'Microsoft',typ:'Microsoft Intune',rows:[
+        {k:'Log Types',v:'AuditLogs, OperationalLogs\nDevice compliance, enrollment'},
+        {k:'Method',v:'Diagnostic Settings → Event Hub'},
+      ]},
+      {type:'fn-col',icon:'⚡',lbl:'Azure Event Hub',typ:'Dedicated hub',rows:[
+        {k:'Hub Name',v:'intune-audit-logs (Intune ONLY)'},
+        {k:'Tier',v:'Standard+ required'},
+      ]},
+      {type:'fn-cr',icon:'⚙️',lbl:'Cribl Stream',typ:'Event Hubs Source',rows:[
+        {k:'Source',v:'Azure Event Hubs Source',link:'https://docs.cribl.io/stream/sources-azure-event-hubs/'},
+        {k:'Group ID',v:'cribl-intune (unique)'},
+      ]},
+      {type:'fn-cs',icon:'🔴',lbl:'CrowdStrike NG SIEM',typ:'Cribl Connector → HEC',rows:[
+        {k:'Parser',v:'microsoft-intune'},
+        {k:'HEC',v:'Auto-created → paste into Cribl dest'},
+        {good:'✓ Parser supported · Data ingest active'},
+      ]},
+    ]
+  },
+
+  { id:'ms-onedrive', grp:'M365 / Office 365', icon:'☁️', name:'Microsoft OneDrive',
+    parser:'microsoft-365', method:'api',
+    ingest:true, investigate:true,
+    desc:'OneDrive activity logs capture file access, sharing, sync, and deletion events via the Office 365 Management Activity API. Uses the same microsoft-365 parser as the Unified Audit Log. The Audit.SharePoint content type covers both SharePoint and OneDrive activity.',
+    msSteps:[
+      ['Register Azure AD App Registration with ActivityFeed.Read permission (Application type).','https://learn.microsoft.com/en-us/graph/auth-register-app-v2','Entra ID › App Registrations'],
+      ['Start Audit.SharePoint subscription via curl (covers both OneDrive and SharePoint).','https://docs.cribl.io/stream/sources-office-365-activity/','Cribl cannot start O365 subscriptions'],
+    ],
+    criblSteps:[
+      ['Create O365 Activity Source: Data › Sources › Office 365 › Activity.','https://docs.cribl.io/stream/sources-office-365-activity/','Enable Audit.SharePoint content type'],
+      ['Set Ingestion lag > 0 (recommend 120 min). OneDrive events share the Audit.SharePoint content type with SharePoint.','https://docs.cribl.io/stream/sources-office-365-activity/','Microsoft delivery lag is 60–90+ min'],
+      ['Route to NG SIEM destination with PQ enabled.','https://docs.cribl.io/stream/destinations-crowdstrike-next-gen-siem/','Enable PQ'],
+    ],
+    csSteps:[
+      ['Use the existing microsoft-365 Cribl Data Connector — OneDrive shares the same parser as M365 Unified Audit Log.','https://docs.cribl.io/stream/destinations-crowdstrike-next-gen-siem/','No separate connector needed'],
+      ['Validate: Event Search → Source: Third Party → filter by OneDrive workload.','https://docs.cribl.io/stream/destinations-crowdstrike-next-gen-siem/','Confirm ingestion'],
+    ],
+    flowNodes:[
+      {type:'fn-ms',icon:'☁️',lbl:'Microsoft',typ:'OneDrive',rows:[
+        {k:'API',v:'O365 Management Activity API'},
+        {k:'Content Type',v:'Audit.SharePoint\n(covers OneDrive + SharePoint)'},
+        {k:'Delay',v:'60–90+ min delivery lag'},
+      ]},
+      {type:'fn-col',icon:'🔌',lbl:'App Registration',typ:'Azure AD App (API Pull)',rows:[
+        {k:'Permission',v:'ActivityFeed.Read (Application)'},
+        {info:'ℹ OneDrive and SharePoint share the Audit.SharePoint subscription'},
+      ]},
+      {type:'fn-cr',icon:'⚙️',lbl:'Cribl Stream',typ:'O365 Activity Source',rows:[
+        {k:'Source',v:'O365 Activity Source',link:'https://docs.cribl.io/stream/sources-office-365-activity/'},
+        {k:'Content Type',v:'Enable Audit.SharePoint'},
+        {k:'Ingestion Lag',v:'Set > 0 (recommend 120 min)'},
+      ]},
+      {type:'fn-cs',icon:'🔴',lbl:'CrowdStrike NG SIEM',typ:'Cribl Connector → HEC',rows:[
+        {k:'Parser',v:'microsoft-365'},
+        {k:'HEC',v:'Shared with M365 Unified Audit connector'},
+        {good:'✓ Parser supported · Data ingest active'},
+      ]},
+    ]
+  },
+
+  { id:'ms-sharepoint', grp:'M365 / Office 365', icon:'📂', name:'Microsoft SharePoint',
+    parser:'microsoft-365', method:'api',
+    ingest:true, investigate:true,
+    desc:'SharePoint Online activity logs capture site access, file operations, permission changes, and sharing events via the Office 365 Management Activity API. SharePoint uses the same microsoft-365 parser and the Audit.SharePoint content type as OneDrive.',
+    msSteps:[
+      ['Register Azure AD App Registration with ActivityFeed.Read permission (Application type).','https://learn.microsoft.com/en-us/graph/auth-register-app-v2','Entra ID › App Registrations'],
+      ['Start Audit.SharePoint subscription via curl.','https://docs.cribl.io/stream/sources-office-365-activity/','One subscription covers both SharePoint and OneDrive'],
+    ],
+    criblSteps:[
+      ['Create O365 Activity Source: Data › Sources › Office 365 › Activity.','https://docs.cribl.io/stream/sources-office-365-activity/','Enable Audit.SharePoint content type'],
+      ['Set Ingestion lag > 0 (recommend 120 min).','https://docs.cribl.io/stream/sources-office-365-activity/','Handle Microsoft delivery delay'],
+      ['Route to NG SIEM destination with PQ enabled.','https://docs.cribl.io/stream/destinations-crowdstrike-next-gen-siem/','Enable PQ'],
+    ],
+    csSteps:[
+      ['Use the existing microsoft-365 Cribl Data Connector — SharePoint shares the same parser as M365 Unified Audit Log.','https://docs.cribl.io/stream/destinations-crowdstrike-next-gen-siem/','No separate connector needed if M365 Audit already configured'],
+      ['Validate: Event Search → Source: Third Party → filter by SharePoint workload.','https://docs.cribl.io/stream/destinations-crowdstrike-next-gen-siem/','Confirm ingestion'],
+    ],
+    flowNodes:[
+      {type:'fn-ms',icon:'📂',lbl:'Microsoft',typ:'SharePoint Online',rows:[
+        {k:'API',v:'O365 Management Activity API'},
+        {k:'Content Type',v:'Audit.SharePoint\n(covers SharePoint + OneDrive)'},
+      ]},
+      {type:'fn-col',icon:'🔌',lbl:'App Registration',typ:'Azure AD App (API Pull)',rows:[
+        {k:'Permission',v:'ActivityFeed.Read (Application)'},
+      ]},
+      {type:'fn-cr',icon:'⚙️',lbl:'Cribl Stream',typ:'O365 Activity Source',rows:[
+        {k:'Source',v:'O365 Activity Source',link:'https://docs.cribl.io/stream/sources-office-365-activity/'},
+        {k:'Content Type',v:'Audit.SharePoint'},
+        {k:'Ingestion Lag',v:'Set > 0 (recommend 120 min)'},
+      ]},
+      {type:'fn-cs',icon:'🔴',lbl:'CrowdStrike NG SIEM',typ:'Cribl Connector → HEC',rows:[
+        {k:'Parser',v:'microsoft-365'},
+        {k:'HEC',v:'Shared with M365 Unified Audit connector'},
+        {good:'✓ Parser supported · Data ingest active'},
+      ]},
+    ]
+  },
+
+  { id:'ms-teams', grp:'M365 / Office 365', icon:'💬', name:'Microsoft Teams',
+    parser:'microsoft-365', method:'api',
+    ingest:true, investigate:true,
+    desc:'Microsoft Teams audit logs capture channel creation, message activity, meeting events, and member changes via the Office 365 Management Activity API. Teams events are included in the Audit.General content type and use the microsoft-365 parser.',
+    msSteps:[
+      ['Register Azure AD App Registration with ActivityFeed.Read permission (Application type).','https://learn.microsoft.com/en-us/graph/auth-register-app-v2','Entra ID › App Registrations'],
+      ['Start Audit.General subscription via curl (Teams events are in Audit.General).','https://docs.cribl.io/stream/sources-office-365-activity/','Cribl cannot start O365 subscriptions'],
+    ],
+    criblSteps:[
+      ['Create O365 Activity Source: Data › Sources › Office 365 › Activity.','https://docs.cribl.io/stream/sources-office-365-activity/','Enable Audit.General content type'],
+      ['Set Ingestion lag > 0 (recommend 120 min). Teams events share Audit.General with other O365 services.','https://docs.cribl.io/stream/sources-office-365-activity/','Handle delivery delay'],
+      ['Route to NG SIEM destination.','https://docs.cribl.io/stream/destinations-crowdstrike-next-gen-siem/','Enable PQ'],
+    ],
+    csSteps:[
+      ['Use the existing microsoft-365 Cribl Data Connector — Teams shares the same parser as M365 Unified Audit Log.','https://docs.cribl.io/stream/destinations-crowdstrike-next-gen-siem/','No separate connector needed'],
+      ['Filter Teams events in NG SIEM using the workload field: Teams.','https://docs.cribl.io/stream/destinations-crowdstrike-next-gen-siem/','Confirm ingestion'],
+    ],
+    flowNodes:[
+      {type:'fn-ms',icon:'💬',lbl:'Microsoft',typ:'Microsoft Teams',rows:[
+        {k:'API',v:'O365 Management Activity API'},
+        {k:'Content Type',v:'Audit.General\n(Teams events included here)'},
+      ]},
+      {type:'fn-col',icon:'🔌',lbl:'App Registration',typ:'Azure AD App (API Pull)',rows:[
+        {k:'Permission',v:'ActivityFeed.Read (Application)'},
+      ]},
+      {type:'fn-cr',icon:'⚙️',lbl:'Cribl Stream',typ:'O365 Activity Source',rows:[
+        {k:'Source',v:'O365 Activity Source',link:'https://docs.cribl.io/stream/sources-office-365-activity/'},
+        {k:'Content Type',v:'Audit.General'},
+        {k:'Ingestion Lag',v:'Set > 0 (recommend 120 min)'},
+      ]},
+      {type:'fn-cs',icon:'🔴',lbl:'CrowdStrike NG SIEM',typ:'Cribl Connector → HEC',rows:[
+        {k:'Parser',v:'microsoft-365'},
+        {k:'HEC',v:'Shared with M365 Unified Audit connector'},
+        {good:'✓ Parser supported · Data ingest active'},
+      ]},
+    ]
+  },
+
+  { id:'ms-sql-errorlog', grp:'Windows Endpoint', icon:'⚠️', name:'Microsoft SQL ErrorLog',
+    parser:'microsoft-sql-errorlog', method:'wef',
+    ingest:true, investigate:true,
+    desc:'SQL Server Error Log records startup/shutdown events, failed logins, severity errors, and database consistency issues. Forwarded via WEF or File Monitor. Complements SQL Audit logs with lower-level SQL Server engine events.',
+    msSteps:[
+      ['SQL Error Logs are written to the SQL Server LOG directory by default.','https://learn.microsoft.com/en-us/sql/tools/configuration-manager/sql-server-error-log','Default path: ..\\MSSQL\\LOG\\ERRORLOG'],
+      ['Forward via WEF subscriptions or use Cribl File Monitor for direct collection.','https://learn.microsoft.com/en-us/windows/security/threat-protection/use-windows-event-forwarding-to-assist-in-intrusion-detection','WEF or file-based collection'],
+    ],
+    criblSteps:[
+      ['Use File Monitor Source pointing to the SQL Server LOG directory, or WEF Source for event-forwarded SQL logs.','https://docs.cribl.io/stream/sources-file-monitor/','docs.cribl.io/stream/sources-file-monitor'],
+      ['Route to NG SIEM destination with PQ enabled.','https://docs.cribl.io/stream/destinations-crowdstrike-next-gen-siem/','Enable PQ'],
+    ],
+    csSteps:[
+      ['Create Cribl Data Connector · Parser: microsoft-sql-errorlog.','https://docs.cribl.io/stream/destinations-crowdstrike-next-gen-siem/','Separate from SQL Audit connector'],
+      ['Generate API key → configure destination → Commit & Deploy.','https://docs.cribl.io/stream/destinations-crowdstrike-next-gen-siem/','HEC auto-created'],
+    ],
+    flowNodes:[
+      {type:'fn-ms',icon:'⚠️',lbl:'Microsoft',typ:'SQL Server Error Log',rows:[
+        {k:'Log Path',v:'...\\MSSQL\\LOG\\ERRORLOG'},
+        {k:'Events',v:'Engine errors, failed logins\nStartup/shutdown, DBCC events'},
+        {k:'Method',v:'File Monitor or WEF → Cribl'},
+      ]},
+      {type:'fn-col',icon:'📁',lbl:'File / WEF',typ:'Log Collection',rows:[
+        {k:'Option A',v:'File Monitor Source (direct)'},
+        {k:'Option B',v:'Windows Event Forwarder'},
+      ]},
+      {type:'fn-cr',icon:'⚙️',lbl:'Cribl Stream',typ:'File Monitor / WEF',rows:[
+        {k:'Source',v:'File Monitor Source',link:'https://docs.cribl.io/stream/sources-file-monitor/'},
+      ]},
+      {type:'fn-cs',icon:'🔴',lbl:'CrowdStrike NG SIEM',typ:'Cribl Connector → HEC',rows:[
+        {k:'Parser',v:'microsoft-sql-errorlog'},
+        {k:'HEC',v:'Auto-created → paste into Cribl dest'},
+        {good:'✓ Parser supported · Data ingest active'},
+      ]},
+    ]
+  },
+
+  { id:'ms-sysmon', grp:'Windows Endpoint', icon:'🔬', name:'Microsoft Sysmon',
+    parser:'microsoft-sysmon', method:'wef',
+    ingest:true, investigate:true,
+    desc:'System Monitor (Sysmon) is a Windows system service and driver that logs detailed process creation, network connections, file changes, registry modifications, and driver loads to the Windows Event Log. Provides high-fidelity endpoint telemetry for threat hunting and incident response.',
+    msSteps:[
+      ['Deploy Sysmon via GPO, SCCM, or Intune. Download from: https://learn.microsoft.com/en-us/sysinternals/downloads/sysmon','https://learn.microsoft.com/en-us/sysinternals/downloads/sysmon','Microsoft Sysinternals download'],
+      ['Use a community Sysmon config (e.g. SwiftOnSecurity or olafhartong modular config) for comprehensive coverage.','https://github.com/SwiftOnSecurity/sysmon-config','Community Sysmon configs'],
+      ['Sysmon logs to the Microsoft-Windows-Sysmon/Operational channel in Windows Event Log.','https://learn.microsoft.com/en-us/sysinternals/downloads/sysmon','Event Log channel: Sysmon/Operational'],
+      ['Configure WEF subscriptions to forward the Sysmon event channel to Cribl.','https://learn.microsoft.com/en-us/windows/security/threat-protection/use-windows-event-forwarding-to-assist-in-intrusion-detection','WEF subscription for Sysmon channel'],
+    ],
+    criblSteps:[
+      ['Create WEF Source in Cribl: Data › Sources › Windows Event Forwarder.','https://docs.cribl.io/stream/sources-wef/','docs.cribl.io/stream/sources-wef'],
+      ['Route to NG SIEM destination with PQ enabled.','https://docs.cribl.io/stream/destinations-crowdstrike-next-gen-siem/','Enable PQ'],
+    ],
+    csSteps:[
+      ['Create Cribl Data Connector · Parser: microsoft-sysmon.','https://docs.cribl.io/stream/destinations-crowdstrike-next-gen-siem/','One connector'],
+      ['Generate API key → configure destination → Commit & Deploy.','https://docs.cribl.io/stream/destinations-crowdstrike-next-gen-siem/','HEC auto-created'],
+    ],
+    flowNodes:[
+      {type:'fn-ms',icon:'🔬',lbl:'Microsoft',typ:'Sysmon Events',rows:[
+        {k:'Event Types',v:'Process create (EID 1), Network (EID 3)\nFile create (EID 11), Registry (EID 13)'},
+        {k:'Log Channel',v:'Microsoft-Windows-Sysmon/Operational'},
+        {k:'Method',v:'WEF → Cribl WEF Source'},
+      ]},
+      {type:'fn-col',icon:'📡',lbl:'WEF Subscription',typ:'Event Forwarding',rows:[
+        {k:'Channel',v:'Microsoft-Windows-Sysmon/Operational'},
+        {info:'ℹ Use SwiftOnSecurity or olafhartong config for best coverage'},
+      ]},
+      {type:'fn-cr',icon:'⚙️',lbl:'Cribl Stream',typ:'WEF Source',rows:[
+        {k:'Source',v:'Windows Event Forwarder Source',link:'https://docs.cribl.io/stream/sources-wef/'},
+      ]},
+      {type:'fn-cs',icon:'🔴',lbl:'CrowdStrike NG SIEM',typ:'Cribl Connector → HEC',rows:[
+        {k:'Parser',v:'microsoft-sysmon'},
+        {k:'HEC',v:'Auto-created → paste into Cribl dest'},
+        {good:'✓ Parser supported · Data ingest active'},
+      ]},
+    ]
+  },
+
+  { id:'ms-windows', grp:'Windows Endpoint', icon:'🪟', name:'Microsoft Windows',
+    parser:'microsoft-windows', method:'wef',
+    ingest:true, investigate:true,
+    desc:'Windows Event Logs (Security, System, Application channels) are the core endpoint telemetry for detecting authentication events, privilege escalation, process execution, account management, and service changes. Forwarded to Cribl via Windows Event Forwarder (WEF).',
+    msSteps:[
+      ['Configure WEF subscriptions on Windows endpoints to forward Security, System, and Application event channels.','https://learn.microsoft.com/en-us/windows/security/threat-protection/use-windows-event-forwarding-to-assist-in-intrusion-detection','WEF configuration guide'],
+      ['Key Security event IDs to prioritise: 4624/4625 (logon), 4648 (explicit logon), 4688 (process create), 4698/4702 (scheduled task), 4720 (account create), 7045 (new service).','https://learn.microsoft.com/en-us/windows-server/identity/ad-ds/plan/appendix-l--events-to-monitor','High-value event IDs for detection'],
+    ],
+    criblSteps:[
+      ['Create WEF Source: Data › Sources › Windows Event Forwarder.','https://docs.cribl.io/stream/sources-wef/','docs.cribl.io/stream/sources-wef'],
+      ['Route to NG SIEM destination with PQ enabled.','https://docs.cribl.io/stream/destinations-crowdstrike-next-gen-siem/','Enable PQ'],
+    ],
+    csSteps:[
+      ['Create Cribl Data Connector · Parser: microsoft-windows.','https://docs.cribl.io/stream/destinations-crowdstrike-next-gen-siem/','One connector'],
+      ['Generate API key → configure destination → Commit & Deploy.','https://docs.cribl.io/stream/destinations-crowdstrike-next-gen-siem/','HEC auto-created'],
+    ],
+    flowNodes:[
+      {type:'fn-ms',icon:'🪟',lbl:'Microsoft',typ:'Windows Event Logs',rows:[
+        {k:'Channels',v:'Security, System, Application'},
+        {k:'Key Event IDs',v:'4624/4625, 4688, 4720, 7045'},
+        {k:'Method',v:'WEF → Cribl WEF Source'},
+      ]},
+      {type:'fn-col',icon:'📡',lbl:'WEF Subscriptions',typ:'Event Forwarding',rows:[
+        {k:'Protocol',v:'HTTP/S via WinRM'},
+        {k:'Filter',v:'Prioritise high-value event IDs'},
+      ]},
+      {type:'fn-cr',icon:'⚙️',lbl:'Cribl Stream',typ:'WEF Source',rows:[
+        {k:'Source',v:'Windows Event Forwarder Source',link:'https://docs.cribl.io/stream/sources-wef/'},
+      ]},
+      {type:'fn-cs',icon:'🔴',lbl:'CrowdStrike NG SIEM',typ:'Cribl Connector → HEC',rows:[
+        {k:'Parser',v:'microsoft-windows'},
+        {k:'HEC',v:'Auto-created → paste into Cribl dest'},
+        {good:'✓ Parser supported · Data ingest active'},
+      ]},
+    ]
+  },
+
+  { id:'ms-dhcp-client', grp:'Windows Endpoint', icon:'🌐', name:'Microsoft Windows DHCP Client',
+    parser:'microsoft-windows-dhcp-client', method:'wef',
+    ingest:true, investigate:true,
+    desc:'Windows DHCP Client logs capture IP address lease events from the client perspective — useful for correlating IP addresses to hostnames at a point in time during investigations. Forwarded via WEF from Windows endpoints.',
+    msSteps:[
+      ['DHCP Client events log to the Microsoft-Windows-Dhcp-Client/Admin and /Operational channels.','https://learn.microsoft.com/en-us/windows-server/networking/technologies/dhcp/dhcp-deploy-wps','Windows DHCP Client event channels'],
+      ['Configure WEF subscriptions to forward these channels from endpoints to Cribl.','https://learn.microsoft.com/en-us/windows/security/threat-protection/use-windows-event-forwarding-to-assist-in-intrusion-detection','WEF configuration'],
+    ],
+    criblSteps:[
+      ['Create WEF Source in Cribl: Data › Sources › Windows Event Forwarder.','https://docs.cribl.io/stream/sources-wef/','docs.cribl.io/stream/sources-wef'],
+      ['Route to NG SIEM destination with PQ enabled.','https://docs.cribl.io/stream/destinations-crowdstrike-next-gen-siem/','Enable PQ'],
+    ],
+    csSteps:[
+      ['Create Cribl Data Connector · Parser: microsoft-windows-dhcp-client.','https://docs.cribl.io/stream/destinations-crowdstrike-next-gen-siem/','One connector'],
+      ['Generate API key → configure destination → Commit & Deploy.','https://docs.cribl.io/stream/destinations-crowdstrike-next-gen-siem/','HEC auto-created'],
+    ],
+    flowNodes:[
+      {type:'fn-ms',icon:'🌐',lbl:'Microsoft',typ:'DHCP Client Logs',rows:[
+        {k:'Channel',v:'Microsoft-Windows-Dhcp-Client/Operational'},
+        {k:'Events',v:'IP lease acquire, renew, release'},
+        {k:'Method',v:'WEF → Cribl WEF Source'},
+      ]},
+      {type:'fn-col',icon:'📡',lbl:'WEF Subscription',typ:'Event Forwarding',rows:[
+        {k:'Channel',v:'Dhcp-Client/Admin + Operational'},
+      ]},
+      {type:'fn-cr',icon:'⚙️',lbl:'Cribl Stream',typ:'WEF Source',rows:[
+        {k:'Source',v:'Windows Event Forwarder Source',link:'https://docs.cribl.io/stream/sources-wef/'},
+      ]},
+      {type:'fn-cs',icon:'🔴',lbl:'CrowdStrike NG SIEM',typ:'Cribl Connector → HEC',rows:[
+        {k:'Parser',v:'microsoft-windows-dhcp-client'},
+        {k:'HEC',v:'Auto-created → paste into Cribl dest'},
+        {good:'✓ Parser supported · Data ingest active'},
+      ]},
+    ]
+  },
+
+  { id:'ms-dhcp-server', grp:'Windows Endpoint', icon:'🖧', name:'Microsoft Windows DHCP Server',
+    parser:'microsoft-windows-dhcp-server', method:'wef',
+    ingest:true, investigate:true,
+    desc:'Windows DHCP Server logs record all IP address lease assignments, renewals, and releases from the server side. Critical for IP-to-hostname correlation during incident investigations and for detecting rogue DHCP activity.',
+    msSteps:[
+      ['Enable DHCP Server audit logging: DHCP Server console › right-click server › Properties › General › Enable DHCP audit logging.','https://learn.microsoft.com/en-us/windows-server/networking/technologies/dhcp/dhcp-deploy-wps','DHCP Server audit logging'],
+      ['DHCP logs are written to %SystemRoot%\\System32\\DHCP by default. Forward via WEF or File Monitor.','https://learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-server-2008-R2-and-2008/dd183591(v=ws.10)','Default DHCP log path'],
+    ],
+    criblSteps:[
+      ['Use WEF Source or File Monitor Source to collect DHCP Server logs.','https://docs.cribl.io/stream/sources-wef/','docs.cribl.io/stream/sources-wef'],
+      ['Route to NG SIEM destination with PQ enabled.','https://docs.cribl.io/stream/destinations-crowdstrike-next-gen-siem/','Enable PQ'],
+    ],
+    csSteps:[
+      ['Create Cribl Data Connector · Parser: microsoft-windows-dhcp-server.','https://docs.cribl.io/stream/destinations-crowdstrike-next-gen-siem/','Separate from DHCP client connector'],
+      ['Generate API key → configure destination → Commit & Deploy.','https://docs.cribl.io/stream/destinations-crowdstrike-next-gen-siem/','HEC auto-created'],
+    ],
+    flowNodes:[
+      {type:'fn-ms',icon:'🖧',lbl:'Microsoft',typ:'DHCP Server Logs',rows:[
+        {k:'Log Path',v:'%SystemRoot%\\System32\\DHCP'},
+        {k:'Events',v:'Lease assign, renew, release\nRogue DHCP detection'},
+        {k:'Method',v:'File Monitor or WEF → Cribl'},
+      ]},
+      {type:'fn-col',icon:'📁',lbl:'File / WEF',typ:'Log Collection',rows:[
+        {k:'Option A',v:'File Monitor Source'},
+        {k:'Option B',v:'Windows Event Forwarder'},
+      ]},
+      {type:'fn-cr',icon:'⚙️',lbl:'Cribl Stream',typ:'File Monitor / WEF',rows:[
+        {k:'Source',v:'File Monitor or WEF Source',link:'https://docs.cribl.io/stream/sources-file-monitor/'},
+      ]},
+      {type:'fn-cs',icon:'🔴',lbl:'CrowdStrike NG SIEM',typ:'Cribl Connector → HEC',rows:[
+        {k:'Parser',v:'microsoft-windows-dhcp-server'},
+        {k:'HEC',v:'Auto-created → paste into Cribl dest'},
+        {good:'✓ Parser supported · Data ingest active'},
+      ]},
+    ]
+  },
+
+  { id:'ms-dns', grp:'Windows Endpoint', icon:'🔍', name:'Microsoft Windows DNS',
+    parser:'microsoft-windows-dns', method:'wef',
+    ingest:true, investigate:true,
+    desc:'Windows DNS Server logs capture DNS query and response activity. Critical for detecting DNS tunnelling, C2 beaconing over DNS, domain generation algorithm (DGA) activity, and data exfiltration. DNS analytical/debug logging must be explicitly enabled.',
+    msSteps:[
+      ['Enable DNS Debug Logging on Windows DNS Server: DNS Manager › server properties › Debug Logging tab. Enable log packets to file.','https://learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-server-2012-R2-and-2012/dn800669(v=ws.11)','DNS debug logging must be explicitly enabled'],
+      ['Alternatively enable DNS Analytical event log via Event Viewer › Analytic and Debug Logs › Microsoft-Windows-DNSServer/Analytical.','https://learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-server-2012-R2-and-2012/dn800669(v=ws.11)','Analytic channel requires ETW enable'],
+      ['Forward via WEF or Syslog to Cribl.','https://learn.microsoft.com/en-us/windows/security/threat-protection/use-windows-event-forwarding-to-assist-in-intrusion-detection','WEF subscription or syslog'],
+    ],
+    criblSteps:[
+      ['Use WEF Source or Syslog Source for DNS events.','https://docs.cribl.io/stream/sources-wef/','docs.cribl.io/stream/sources-wef'],
+      ['Route to NG SIEM destination with PQ enabled.','https://docs.cribl.io/stream/destinations-crowdstrike-next-gen-siem/','Enable PQ'],
+    ],
+    csSteps:[
+      ['Create Cribl Data Connector · Parser: microsoft-windows-dns.','https://docs.cribl.io/stream/destinations-crowdstrike-next-gen-siem/','One connector'],
+      ['Generate API key → configure destination → Commit & Deploy.','https://docs.cribl.io/stream/destinations-crowdstrike-next-gen-siem/','HEC auto-created'],
+    ],
+    flowNodes:[
+      {type:'fn-ms',icon:'🔍',lbl:'Microsoft',typ:'Windows DNS Server',rows:[
+        {k:'Log Types',v:'DNS queries, responses\nDebug log or Analytical ETW'},
+        {warn:'⚠ Debug logging and Analytical channel must be explicitly enabled — not on by default'},
+        {k:'Method',v:'WEF or Syslog → Cribl'},
+      ]},
+      {type:'fn-col',icon:'📡',lbl:'WEF / Syslog',typ:'Log Forwarding',rows:[
+        {k:'Option A',v:'WEF (DNS Analytical channel)'},
+        {k:'Option B',v:'Syslog forwarder'},
+      ]},
+      {type:'fn-cr',icon:'⚙️',lbl:'Cribl Stream',typ:'WEF / Syslog Source',rows:[
+        {k:'Source',v:'WEF Source or Syslog Source',link:'https://docs.cribl.io/stream/sources-wef/'},
+      ]},
+      {type:'fn-cs',icon:'🔴',lbl:'CrowdStrike NG SIEM',typ:'Cribl Connector → HEC',rows:[
+        {k:'Parser',v:'microsoft-windows-dns'},
+        {k:'HEC',v:'Auto-created → paste into Cribl dest'},
+        {good:'✓ Parser supported · Data ingest active'},
+      ]},
+    ]
+  },
 ];
 
 // ══════════════════════════════════════
