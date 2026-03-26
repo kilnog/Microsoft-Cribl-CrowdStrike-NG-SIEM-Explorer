@@ -1,0 +1,1764 @@
+<!DOCTYPE html>
+<!--
+  ms-cribl-ngsiem-pipeline-explorer
+  https://github.com/<your-username>/ms-cribl-ngsiem-pipeline-explorer
+
+  MIT License
+  Copyright (c) 2025
+
+  Permission is hereby granted, free of charge, to any person obtaining a copy
+  of this software and associated documentation files (the "Software"), to deal
+  in the Software without restriction, including without limitation the rights
+  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+  copies of the Software, and to permit persons to whom the Software is
+  furnished to do so, subject to the following conditions:
+
+  The above copyright notice and this permission notice shall be included in
+  all copies or substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+  THE SOFTWARE.
+
+  THIRD-PARTY CONTENT NOTICE
+  Content within this tool is derived from publicly available documentation
+  from Microsoft (learn.microsoft.com), Cribl (docs.cribl.io), and CrowdStrike
+  (crowdstrike.com). That content remains the property of the respective owners
+  and is subject to their own terms of use. This tool is AI-assisted and
+  provided as-is with no warranty. Always verify against official documentation.
+-->
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="Interactive reference tool for planning Microsoft security log ingestion into CrowdStrike Falcon NG SIEM via Cribl Stream. Covers pipeline design, configuration steps, and best practices.">
+<meta name="author" content="ms-cribl-ngsiem-pipeline-explorer">
+<meta property="og:title" content="Microsoft → Cribl → CrowdStrike NG SIEM Pipeline Explorer">
+<meta property="og:description" content="End-to-end pipeline reference: Microsoft security logs → Cribl Stream → CrowdStrike Falcon NG SIEM.">
+<meta property="og:type" content="website">
+<title>Microsoft → Cribl → CrowdStrike NG SIEM | Pipeline Explorer</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23f4f6f9'/%3E%3Crect x='2' y='2' width='28' height='28' rx='6' fill='white' stroke='%23d1dae6' stroke-width='1'/%3E%3C!-- MS blue block --%3E%3Crect x='5' y='5' width='7' height='7' rx='1' fill='%230078d4'/%3E%3C!-- Cribl green block --%3E%3Crect x='13' y='5' width='7' height='7' rx='1' fill='%23007a4d'/%3E%3C!-- CS red block --%3E%3Crect x='21' y='5' width='6' height='7' rx='1' fill='%23c0392b'/%3E%3C!-- flow arrow line --%3E%3Crect x='5' y='15' width='22' height='2' rx='1' fill='%230078d4' opacity='0.3'/%3E%3Cpolygon points='25,13 29,16 25,19' fill='%230078d4' opacity='0.6'/%3E%3C!-- bottom text bar --%3E%3Crect x='5' y='21' width='10' height='2' rx='1' fill='%23d1dae6'/%3E%3Crect x='17' y='21' width='10' height='2' rx='1' fill='%23d1dae6'/%3E%3Crect x='5' y='25' width='7' height='2' rx='1' fill='%23d1dae6'/%3E%3Crect x='14' y='25' width='13' height='2' rx='1' fill='%23d1dae6'/%3E%3C/svg%3E">
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+:root {
+  /* Palette — light clinical */
+  --bg:       #f4f6f9;
+  --surface:  #ffffff;
+  --surface2: #f8fafc;
+  --surface3: #eef2f7;
+  --border:   #d1dae6;
+  --border2:  #b0bece;
+  --shadow:   0 1px 4px rgba(0,0,0,.08);
+  --shadow2:  0 2px 12px rgba(0,0,0,.10);
+
+  /* Brand colours */
+  --ms:       #0078d4;
+  --ms-bg:    rgba(0,120,212,.07);
+  --ms-bdr:   rgba(0,120,212,.25);
+  --cribl:    #007a4d;
+  --cribl-bg: rgba(0,122,77,.07);
+  --cribl-bdr:rgba(0,122,77,.25);
+  --cs:       #c0392b;
+  --cs-bg:    rgba(192,57,43,.07);
+  --cs-bdr:   rgba(192,57,43,.25);
+  --flow:     #0078d4;
+
+  /* Status */
+  --yes:      #16a34a;
+  --yes-bg:   rgba(22,163,74,.10);
+  --yes-bdr:  rgba(22,163,74,.30);
+  --no:       #c0392b;
+  --no-bg:    rgba(192,57,43,.10);
+  --no-bdr:   rgba(192,57,43,.30);
+  --warn:     #b45309;
+  --warn-bg:  rgba(180,83,9,.08);
+  --warn-bdr: rgba(180,83,9,.25);
+  --info-bg:  rgba(0,120,212,.07);
+  --info-bdr: rgba(0,120,212,.25);
+  --info-txt: #0c5a9e;
+  --good-bg:  rgba(22,163,74,.07);
+  --good-bdr: rgba(22,163,74,.25);
+  --good-txt: #15803d;
+
+  /* Text */
+  --txt:      #374151;
+  --txt2:     #6b7280;
+  --txt3:     #9ca3af;
+  --heading:  #111827;
+
+  /* Fonts */
+  --mono: 'JetBrains Mono', monospace;
+  --sans: 'Inter', sans-serif;
+
+  /* Layout */
+  --sw: 310px;
+
+  /* Base font size — 17.6px = 10% larger than 16px baseline */
+  font-size: 17.6px;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; overflow: hidden; }
+
+body {
+  background: var(--bg);
+  color: var(--txt);
+  font-family: var(--sans);
+  font-size: 0.9rem;
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  line-height: 1.5;
+}
+
+/* ══════════════════════════════
+   DISCLAIMER
+══════════════════════════════ */
+#disclaimer {
+  background: #fffbeb;
+  border-bottom: 1px solid #fcd34d;
+  padding: 0.6rem 1.1rem;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  flex-shrink: 0;
+}
+#disclaimer .d-icon { font-size: 0.95rem; flex-shrink: 0; margin-top: 2px; }
+#disclaimer .d-text { font-family: var(--mono); font-size: 0.72rem; color: #92400e; line-height: 1.6; flex: 1; }
+#disclaimer .d-text strong { color: #78350f; }
+#disclaimer button {
+  background: transparent; border: 1px solid #d97706;
+  border-radius: 4px; color: #92400e;
+  font-family: var(--mono); font-size: 0.7rem;
+  padding: 3px 9px; cursor: pointer; flex-shrink: 0; margin-top: 1px;
+  white-space: nowrap;
+}
+#disclaimer button:hover { background: #fef3c7; }
+
+/* ══════════════════════════════
+   SHELL
+══════════════════════════════ */
+.shell { display: flex; flex: 1; overflow: hidden; min-height: 0; }
+
+/* ══════════════════════════════
+   SIDEBAR
+══════════════════════════════ */
+.sidebar {
+  width: var(--sw);
+  min-width: var(--sw);
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.sb-logo {
+  padding: 0.9rem 1rem 0.7rem;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  background: var(--surface);
+}
+.sb-logo-title {
+  font-size: 0.82rem; font-weight: 700; color: var(--heading);
+  letter-spacing: -0.01em; line-height: 1.3;
+}
+.sb-logo-sub {
+  font-family: var(--mono); font-size: 0.65rem; color: var(--txt2);
+  margin-top: 3px;
+}
+
+.sb-search {
+  padding: 0.55rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.sb-search input {
+  width: 100%;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 0.38rem 0.65rem;
+  font-family: var(--sans);
+  font-size: 0.8rem;
+  color: var(--heading);
+  outline: none;
+  transition: border-color .15s;
+}
+.sb-search input::placeholder { color: var(--txt3); }
+.sb-search input:focus { border-color: var(--ms); box-shadow: 0 0 0 2px rgba(0,120,212,.12); }
+
+.sb-filters {
+  padding: 0.5rem 0.75rem;
+  display: flex; gap: 5px; flex-shrink: 0;
+  border-bottom: 1px solid var(--border);
+}
+.fc {
+  font-family: var(--sans); font-size: 0.72rem; font-weight: 500;
+  padding: 0.25rem 0.65rem; border-radius: 4px; cursor: pointer;
+  border: 1px solid var(--border);
+  color: var(--txt2); background: transparent;
+  transition: all .15s; white-space: nowrap;
+}
+.fc:hover { border-color: var(--border2); color: var(--heading); background: var(--surface3); }
+.fc.active { background: var(--ms); border-color: var(--ms); color: #fff; }
+
+.sb-nav { overflow-y: auto; flex: 1; padding-bottom: 1rem; }
+.sb-nav::-webkit-scrollbar { width: 4px; }
+.sb-nav::-webkit-scrollbar-track { background: transparent; }
+.sb-nav::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+.grp-label {
+  font-size: 0.66rem; font-weight: 600; letter-spacing: 0.08em;
+  text-transform: uppercase; color: var(--txt3);
+  padding: 0.75rem 1rem 0.3rem;
+}
+
+.nav-item {
+  display: flex; align-items: center; gap: 0.5rem;
+  padding: 0.45rem 1rem; cursor: pointer;
+  border-left: 3px solid transparent;
+  transition: all .13s;
+}
+.nav-item:hover { background: var(--bg); }
+.nav-item.active { background: var(--ms-bg); border-left-color: var(--ms); }
+
+.ni-icon { font-size: 0.9rem; flex-shrink: 0; }
+.ni-text { flex: 1; min-width: 0; }
+.ni-name { font-size: 0.78rem; font-weight: 500; color: var(--txt); line-height: 1.3; }
+.nav-item.active .ni-name { color: var(--ms); font-weight: 600; }
+.ni-parser { font-family: var(--mono); font-size: 0.62rem; color: var(--txt3); margin-top: 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.method-pip {
+  font-family: var(--mono); font-size: 0.6rem; padding: 1px 5px;
+  border-radius: 3px; white-space: nowrap; flex-shrink: 0;
+}
+.mp-hub { background: var(--ms-bg); color: var(--ms); border: 1px solid var(--ms-bdr); }
+.mp-api { background: rgba(91,33,182,.07); color: #6d28d9; border: 1px solid rgba(91,33,182,.25); }
+.mp-wef { background: var(--surface3); color: var(--txt2); border: 1px solid var(--border); }
+
+/* ══════════════════════════════
+   MAIN
+══════════════════════════════ */
+.main { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
+
+.topbar {
+  display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;
+  padding: 0.65rem 1.25rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  flex-shrink: 0;
+}
+.tb-title { font-size: 0.88rem; font-weight: 600; color: var(--heading); }
+.tb-tabs { display: flex; gap: 5px; margin-left: auto; flex-wrap: wrap; }
+.tb-tab {
+  font-family: var(--sans); font-size: 0.75rem; font-weight: 500;
+  padding: 0.3rem 0.85rem; border-radius: 5px; cursor: pointer;
+  border: 1px solid var(--border);
+  color: var(--txt2); background: transparent;
+  transition: all .15s; white-space: nowrap;
+}
+.tb-tab:hover { border-color: var(--border2); color: var(--heading); background: var(--surface3); }
+.tb-tab.active { background: var(--ms); border-color: var(--ms); color: #fff; }
+
+/* ══════════════════════════════
+   PANELS
+══════════════════════════════ */
+.panels { flex: 1; overflow: hidden; position: relative; min-height: 0; }
+.panel { position: absolute; inset: 0; overflow-y: auto; padding: 1.5rem 1.75rem; display: none; }
+.panel.active { display: block; }
+.panel::-webkit-scrollbar { width: 5px; }
+.panel::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+/* WELCOME */
+.welcome {
+  display: flex; flex-direction: column; align-items: center;
+  justify-content: center; height: 100%;
+  text-align: center; gap: 0.75rem;
+}
+.welcome-icon { font-size: 3rem; opacity: .2; }
+.welcome h2 { font-size: 1.05rem; color: var(--txt2); font-weight: 500; }
+.welcome p { font-size: 0.82rem; color: var(--txt3); max-width: 380px; line-height: 1.7; }
+
+/* ══════════════════════════════
+   SOURCE DETAIL HEADER
+══════════════════════════════ */
+.detail-hdr {
+  display: flex; align-items: flex-start; gap: 1rem;
+  margin-bottom: 1.1rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--border);
+}
+.dh-icon {
+  width: 48px; height: 48px; border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.4rem; flex-shrink: 0;
+  background: var(--ms-bg); border: 1px solid var(--ms-bdr);
+}
+.dh-title { font-size: 1.05rem; font-weight: 700; color: var(--heading); }
+.dh-sub { font-family: var(--mono); font-size: 0.72rem; color: var(--txt2); margin-top: 3px; }
+.dh-badges { display: flex; gap: 5px; margin-top: 7px; flex-wrap: wrap; }
+.dbg {
+  font-family: var(--mono); font-size: 0.65rem; letter-spacing: 0.04em;
+  padding: 2px 8px; border-radius: 4px; text-transform: uppercase;
+  font-weight: 500;
+}
+.dbg-ms    { background: var(--ms-bg);    color: var(--ms);    border: 1px solid var(--ms-bdr); }
+.dbg-cribl { background: var(--cribl-bg); color: var(--cribl); border: 1px solid var(--cribl-bdr); }
+.dbg-cs    { background: var(--cs-bg);    color: var(--cs);    border: 1px solid var(--cs-bdr); }
+.dbg-hub   { background: var(--ms-bg);    color: var(--ms);    border: 1px solid var(--ms-bdr); }
+.dbg-api   { background: rgba(91,33,182,.07); color: #6d28d9; border: 1px solid rgba(91,33,182,.25); }
+.dbg-wef   { background: var(--surface3); color: var(--txt2); border: 1px solid var(--border); }
+
+.detail-desc {
+  font-size: 0.85rem; color: var(--txt); line-height: 1.75;
+  margin-bottom: 1.4rem; max-width: 860px;
+}
+
+/* ══════════════════════════════
+   SECTION TITLE
+══════════════════════════════ */
+.sec-ttl {
+  font-size: 0.7rem; font-weight: 700; letter-spacing: 0.09em;
+  text-transform: uppercase; color: var(--txt2);
+  margin-bottom: 0.75rem;
+  display: flex; align-items: center; gap: 0.6rem;
+}
+.sec-ttl::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+/* ══════════════════════════════
+   FLOW DIAGRAM
+══════════════════════════════ */
+.flow-wrap { overflow-x: auto; padding-bottom: 0.5rem; margin-bottom: 1.5rem; }
+.flow { display: flex; align-items: stretch; gap: 0; min-width: min-content; }
+
+.fn {
+  display: flex; flex-direction: column;
+  min-width: 195px; max-width: 230px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px; overflow: hidden;
+  flex-shrink: 0;
+  box-shadow: var(--shadow);
+}
+.fn-hdr {
+  padding: 0.55rem 0.75rem;
+  display: flex; align-items: center; gap: 0.5rem;
+  border-bottom: 1px solid var(--border);
+}
+.fn-hdr-ico { font-size: 0.95rem; }
+.fn-lbl { font-size: 0.72rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; }
+.fn-typ { font-family: var(--mono); font-size: 0.65rem; color: var(--txt2); margin-top: 1px; }
+
+.fn-ms   .fn-hdr { background: var(--ms-bg);    border-color: var(--ms-bdr); }
+.fn-ms   .fn-lbl { color: var(--ms); }
+.fn-col  .fn-hdr { background: #eff6ff; border-color: #bfdbfe; }
+.fn-col  .fn-lbl { color: #1d4ed8; }
+.fn-cr   .fn-hdr { background: var(--cribl-bg); border-color: var(--cribl-bdr); }
+.fn-cr   .fn-lbl { color: var(--cribl); }
+.fn-cs   .fn-hdr { background: var(--cs-bg);    border-color: var(--cs-bdr); }
+.fn-cs   .fn-lbl { color: var(--cs); }
+
+.fn-body { padding: 0.65rem 0.75rem; flex: 1; display: flex; flex-direction: column; gap: 0.5rem; }
+.fn-row { display: flex; flex-direction: column; gap: 1px; }
+.fn-rlbl { font-family: var(--mono); font-size: 0.62rem; color: var(--txt3); letter-spacing: 0.02em; }
+.fn-rval { font-family: var(--mono); font-size: 0.75rem; color: var(--heading); line-height: 1.45; word-break: break-word; }
+.fn-rval a { color: var(--ms); text-decoration: none; font-size: 0.68rem; }
+.fn-rval a:hover { text-decoration: underline; }
+.fn-warn { font-family: var(--mono); font-size: 0.7rem; color: var(--warn); background: var(--warn-bg); border: 1px solid var(--warn-bdr); border-radius: 4px; padding: 0.35rem 0.5rem; line-height: 1.55; margin-top: 2px; }
+.fn-info { font-family: var(--mono); font-size: 0.7rem; color: var(--info-txt); background: var(--info-bg); border: 1px solid var(--info-bdr); border-radius: 4px; padding: 0.35rem 0.5rem; line-height: 1.55; margin-top: 2px; }
+.fn-good { font-family: var(--mono); font-size: 0.7rem; color: var(--good-txt); background: var(--good-bg); border: 1px solid var(--good-bdr); border-radius: 4px; padding: 0.35rem 0.5rem; line-height: 1.55; margin-top: 2px; }
+
+/* flow connectors */
+.fconn {
+  display: flex; flex-direction: column; align-items: center;
+  justify-content: center; padding: 0 3px; flex-shrink: 0; min-width: 42px;
+}
+.fconn-lbl { font-family: var(--mono); font-size: 0.6rem; color: var(--txt3); text-align: center; margin-bottom: 3px; text-transform: uppercase; }
+.fconn-line {
+  width: 100%; height: 2px;
+  background: linear-gradient(90deg, var(--ms), rgba(0,120,212,.2));
+  position: relative; overflow: hidden;
+}
+.fconn-line::after {
+  content: ''; position: absolute; top: -3px; left: -18px;
+  width: 18px; height: 8px; border-radius: 4px;
+  background: rgba(0,120,212,.6);
+  animation: fp 2s ease-in-out infinite;
+}
+.fconn:nth-child(2) .fconn-line::after { animation-delay: .67s; }
+.fconn:nth-child(4) .fconn-line::after { animation-delay: 1.33s; }
+.fconn:nth-child(6) .fconn-line::after { animation-delay: 2s; }
+.fconn-tip { width: 0; height: 0; border-top: 5px solid transparent; border-bottom: 5px solid transparent; border-left: 8px solid var(--ms); margin-top: -2px; }
+@keyframes fp { 0%{left:-18px;opacity:0} 20%{opacity:.9} 100%{left:calc(100% + 18px);opacity:0} }
+
+/* ══════════════════════════════
+   COVERAGE BOX — simplified
+══════════════════════════════ */
+.cov-box {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 1rem 1.1rem;
+  margin-bottom: 1.4rem;
+  max-width: 560px;
+  box-shadow: var(--shadow);
+}
+.cov-box-title {
+  font-size: 0.7rem; font-weight: 700; letter-spacing: 0.07em;
+  text-transform: uppercase; color: var(--txt2);
+  margin-bottom: 0.8rem; padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--border);
+}
+.cov-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0.38rem 0;
+  border-bottom: 1px solid var(--surface3);
+}
+.cov-row:last-child { border-bottom: none; }
+.cov-key { font-size: 0.82rem; color: var(--txt); }
+.y-pill { font-family: var(--mono); font-size: 0.65rem; letter-spacing: 0.06em; padding: 2px 9px; border-radius: 4px; text-transform: uppercase; background: var(--yes-bg); color: var(--yes); border: 1px solid var(--yes-bdr); font-weight: 600; }
+.n-pill { font-family: var(--mono); font-size: 0.65rem; letter-spacing: 0.06em; padding: 2px 9px; border-radius: 4px; text-transform: uppercase; background: var(--no-bg);  color: var(--no);  border: 1px solid var(--no-bdr);  font-weight: 600; }
+.parser-tag { font-family: var(--mono); font-size: 0.72rem; color: var(--ms); background: var(--ms-bg); border: 1px solid var(--ms-bdr); padding: 1px 8px; border-radius: 4px; }
+
+/* ══════════════════════════════
+   NOTES GRID
+══════════════════════════════ */
+.notes-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 1.5rem; }
+.nc { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 0.85rem 1rem; box-shadow: var(--shadow); }
+.nc-ttl { font-size: 0.72rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 0.6rem; padding-bottom: 0.45rem; border-bottom: 1px solid var(--border); }
+.nc-ms .nc-ttl { color: var(--ms); }
+.nc-cr .nc-ttl { color: var(--cribl); }
+.nc-cs .nc-ttl { color: var(--cs); }
+.nc ol { list-style: none; font-family: var(--mono); font-size: 0.75rem; color: var(--txt); line-height: 1.75; counter-reset: nc; }
+.nc ol li { counter-increment: nc; display: flex; gap: 0.4rem; align-items: flex-start; padding: 0.05rem 0; }
+.nc ol li::before { content: counter(nc)"."; color: var(--ms); font-weight: 700; font-size: 0.72rem; min-width: 18px; flex-shrink: 0; margin-top: 1px; }
+.nc ol li span { font-size: 0.75rem; line-height: 1.65; }
+.nc a { color: var(--ms); text-decoration: none; }
+.nc a:hover { text-decoration: underline; }
+.step-note { font-size: 0.65rem !important; color: var(--txt2) !important; }
+
+/* ══════════════════════════════
+   MATRIX TAB
+══════════════════════════════ */
+.matrix-controls {
+  display: flex; align-items: center; gap: 0.5rem;
+  margin-bottom: 1rem; flex-wrap: wrap;
+}
+.mx-filter-btn {
+  font-family: var(--sans); font-size: 0.75rem; font-weight: 500;
+  padding: 0.28rem 0.75rem; border-radius: 4px; cursor: pointer;
+  border: 1px solid var(--border); color: var(--txt2); background: transparent;
+  transition: all .15s;
+}
+.mx-filter-btn:hover { border-color: var(--border2); background: var(--surface3); color: var(--heading); }
+.mx-filter-btn.active { background: var(--ms); border-color: var(--ms); color: #fff; }
+.mx-search {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 5px; padding: 0.3rem 0.7rem;
+  font-family: var(--sans); font-size: 0.8rem; color: var(--heading);
+  outline: none; margin-left: auto; width: 200px;
+  transition: border-color .15s;
+}
+.mx-search:focus { border-color: var(--ms); box-shadow: 0 0 0 2px rgba(0,120,212,.12); }
+.mx-search::placeholder { color: var(--txt3); }
+
+.matrix-tbl-wrap { overflow-x: auto; border-radius: 8px; border: 1px solid var(--border); box-shadow: var(--shadow); }
+table { width: 100%; border-collapse: collapse; font-size: 0.82rem; background: var(--surface); }
+thead tr { background: var(--surface2); }
+thead th {
+  padding: 0.65rem 0.85rem; text-align: left; font-size: 0.7rem; font-weight: 700;
+  letter-spacing: 0.06em; text-transform: uppercase; color: var(--txt2);
+  border-bottom: 2px solid var(--border); white-space: nowrap;
+  cursor: pointer; user-select: none;
+}
+thead th:hover { color: var(--heading); }
+.th-ms    { color: var(--ms) !important; }
+.th-cr    { color: var(--cribl) !important; }
+.th-cs    { color: var(--cs) !important; }
+.sort-ind { margin-left: 3px; opacity: .35; font-size: 0.7rem; }
+thead th.sorted .sort-ind { opacity: 1; color: var(--ms); }
+tbody tr { border-bottom: 1px solid var(--border); cursor: pointer; transition: background .1s; }
+tbody tr:last-child { border-bottom: none; }
+tbody tr:hover { background: var(--surface3); }
+tbody tr.selected { background: var(--ms-bg); border-left: 3px solid var(--ms); }
+td { padding: 0.6rem 0.85rem; vertical-align: middle; }
+td.td-name { font-weight: 500; color: var(--heading); white-space: nowrap; font-size: 0.82rem; }
+td.td-parser { font-family: var(--mono); font-size: 0.72rem; color: var(--txt2); }
+.method-tag { font-family: var(--mono); font-size: 0.65rem; padding: 2px 7px; border-radius: 3px; font-weight: 500; }
+.mt-hub { background: var(--ms-bg); color: var(--ms); border: 1px solid var(--ms-bdr); }
+.mt-api { background: rgba(91,33,182,.07); color: #6d28d9; border: 1px solid rgba(91,33,182,.25); }
+.mt-wef { background: var(--surface3); color: var(--txt2); border: 1px solid var(--border); }
+.y-pill-sm { font-family: var(--mono); font-size: 0.63rem; letter-spacing: .05em; padding: 1px 7px; border-radius: 3px; text-transform: uppercase; background: var(--yes-bg); color: var(--yes); border: 1px solid var(--yes-bdr); font-weight: 600; }
+.n-pill-sm { font-family: var(--mono); font-size: 0.63rem; letter-spacing: .05em; padding: 1px 7px; border-radius: 3px; text-transform: uppercase; background: var(--no-bg);  color: var(--no);  border: 1px solid var(--no-bdr);  font-weight: 600; }
+.grp-sep td { background: var(--surface2); color: var(--txt3); font-size: 0.65rem; font-weight: 700; letter-spacing: 0.09em; text-transform: uppercase; padding: 0.3rem 0.85rem; border-bottom: 1px solid var(--border); }
+.matrix-note { font-size: 0.75rem; color: var(--txt2); margin-top: 0.75rem; line-height: 1.6; }
+.matrix-note a { color: var(--ms); text-decoration: none; }
+.matrix-note a:hover { text-decoration: underline; }
+
+/* ══════════════════════════════
+   RUN SHEET TAB
+══════════════════════════════ */
+.rs-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; margin-bottom: 1.1rem; flex-wrap: wrap; }
+.rs-header-left h2 { font-size: 1rem; font-weight: 700; color: var(--heading); }
+.rs-header-left p { font-size: 0.8rem; color: var(--txt2); margin-top: 3px; line-height: 1.55; max-width: 500px; }
+.rs-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.btn { font-family: var(--sans); font-size: 0.78rem; font-weight: 500; padding: 0.38rem 0.9rem; border-radius: 5px; cursor: pointer; border: 1px solid; transition: all .15s; }
+.btn-primary { background: var(--ms); border-color: var(--ms); color: #fff; }
+.btn-primary:hover { background: #0066b8; }
+.btn-secondary { background: var(--surface); border-color: var(--border); color: var(--txt); }
+.btn-secondary:hover { border-color: var(--border2); background: var(--surface3); color: var(--heading); }
+
+.picker-wrap { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.25rem; }
+.picker-col h3 { font-size: 0.72rem; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase; color: var(--txt2); margin-bottom: 0.5rem; padding-bottom: 0.4rem; border-bottom: 1px solid var(--border); }
+.picker-list { display: flex; flex-direction: column; gap: 3px; max-height: 280px; overflow-y: auto; }
+.picker-list::-webkit-scrollbar { width: 4px; }
+.picker-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+.picker-item { display: flex; align-items: center; gap: 0.5rem; padding: 0.42rem 0.65rem; border-radius: 5px; cursor: pointer; border: 1px solid var(--border); background: var(--surface); transition: all .13s; }
+.picker-item:hover { border-color: var(--border2); background: var(--surface3); }
+.picker-item.selected { border-color: var(--ms); background: var(--ms-bg); }
+.picker-item input[type=checkbox] { accent-color: var(--ms); width: 13px; height: 13px; cursor: pointer; flex-shrink: 0; }
+.picker-item-name { font-size: 0.8rem; color: var(--txt); flex: 1; font-weight: 500; }
+.picker-item.selected .picker-item-name { color: var(--ms); }
+.picker-item-parser { font-family: var(--mono); font-size: 0.62rem; color: var(--txt3); }
+
+.rs-output { margin-top: 0.25rem; }
+.rs-empty { text-align: center; padding: 3rem; font-size: 0.85rem; color: var(--txt3); }
+.rs-count { font-size: 0.8rem; color: var(--txt2); margin-bottom: 0.85rem; }
+.rs-count strong { color: var(--heading); font-weight: 600; }
+
+.rs-card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; margin-bottom: 1rem; box-shadow: var(--shadow); }
+.rs-card-hdr { display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem 1rem; border-bottom: 1px solid var(--border); background: var(--surface2); }
+.rs-card-hdr-ico { font-size: 1.2rem; flex-shrink: 0; }
+.rs-card-hdr-info { flex: 1; }
+.rs-name { font-size: 0.9rem; font-weight: 700; color: var(--heading); }
+.rs-parser { font-family: var(--mono); font-size: 0.7rem; color: var(--ms); margin-top: 1px; }
+.rs-card-hdr-badges { display: flex; gap: 5px; }
+
+.rs-sections { display: grid; grid-template-columns: repeat(3, 1fr); border-top: 1px solid var(--border); }
+.rs-sec { padding: 0.85rem 1rem; border-right: 1px solid var(--border); }
+.rs-sec:last-child { border-right: none; }
+.rs-sec-ttl { font-size: 0.68rem; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase; margin-bottom: 0.55rem; padding-bottom: 0.35rem; border-bottom: 1px solid var(--border); }
+.rs-ms .rs-sec-ttl { color: var(--ms); }
+.rs-cr .rs-sec-ttl { color: var(--cribl); }
+.rs-cs .rs-sec-ttl { color: var(--cs); }
+.rs-steps { list-style: none; font-family: var(--mono); font-size: 0.73rem; color: var(--txt); line-height: 1.75; counter-reset: rs; }
+.rs-steps li { counter-increment: rs; display: flex; gap: 0.4rem; align-items: flex-start; }
+.rs-steps li::before { content: counter(rs)"."; color: var(--ms); font-weight: 700; font-size: 0.7rem; min-width: 16px; flex-shrink: 0; margin-top: 1px; }
+.rs-steps a { color: var(--ms); text-decoration: none; }
+.rs-steps a:hover { text-decoration: underline; }
+.rs-steps .snote { font-size: 0.62rem; color: var(--txt3); }
+
+.rs-cov-row { display: flex; align-items: center; justify-content: space-between; padding: 0.28rem 0; border-bottom: 1px solid var(--surface3); font-size: 0.78rem; color: var(--txt); }
+.rs-cov-row:last-child { border-bottom: none; }
+
+.rs-export-bar { display: flex; align-items: center; gap: 0.6rem; padding: 0.85rem 0 0.25rem; border-top: 1px solid var(--border); margin-top: 0.5rem; }
+.rs-export-bar span { font-size: 0.8rem; color: var(--txt2); }
+
+/* ══════════════════════════════
+   RESPONSIVE
+══════════════════════════════ */
+@media (max-width: 1280px) {
+  :root { --sw: 270px; }
+  .notes-grid { grid-template-columns: 1fr; }
+  .picker-wrap { grid-template-columns: 1fr; }
+}
+@media (max-width: 1000px) {
+  :root { --sw: 230px; }
+  .fn { min-width: 160px; max-width: 190px; }
+  .rs-sections { grid-template-columns: 1fr; }
+  .notes-grid { grid-template-columns: 1fr; }
+}
+@media (max-width: 780px) {
+  .sidebar { display: none; }
+  .tb-title { display: none; }
+}
+
+/* ══════════════════════════════
+   RESOURCES PANEL
+══════════════════════════════ */
+.res-header { margin-bottom: 0.25rem; }
+.res-header h2 { font-size: 1rem; font-weight: 700; color: var(--heading); }
+.res-header p { font-size: 0.82rem; color: var(--txt2); margin-top: 4px; line-height: 1.6; max-width: 760px; }
+
+/* best practice cards */
+.bp-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.85rem;
+  margin-bottom: 0.5rem;
+}
+@media (max-width: 1100px) { .bp-grid { grid-template-columns: 1fr; } }
+
+.bp-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: var(--shadow);
+}
+.bp-card-hdr {
+  display: flex; align-items: center; gap: 0.6rem;
+  padding: 0.65rem 0.9rem;
+  border-bottom: 1px solid var(--border);
+}
+.bp-ico { font-size: 1.1rem; flex-shrink: 0; }
+.bp-title { font-size: 0.82rem; font-weight: 700; color: var(--heading); }
+.bp-sub { font-family: var(--mono); font-size: 0.65rem; color: var(--txt2); margin-top: 1px; }
+
+.bp-azure .bp-card-hdr { background: var(--ms-bg); border-bottom-color: var(--ms-bdr); }
+.bp-azure .bp-title  { color: var(--ms); }
+.bp-cribl .bp-card-hdr { background: var(--cribl-bg); border-bottom-color: var(--cribl-bdr); }
+.bp-cribl .bp-title  { color: var(--cribl); }
+.bp-cs    .bp-card-hdr { background: var(--cs-bg);    border-bottom-color: var(--cs-bdr); }
+.bp-cs    .bp-title  { color: var(--cs); }
+.bp-api   .bp-card-hdr { background: rgba(91,33,182,.06); border-bottom-color: rgba(91,33,182,.2); }
+.bp-api   .bp-title  { color: #5b21b6; }
+
+.bp-list {
+  list-style: none;
+  padding: 0.7rem 0.9rem;
+  display: flex; flex-direction: column; gap: 0.55rem;
+}
+.bp-list li {
+  font-size: 0.8rem; color: var(--txt); line-height: 1.65;
+  padding-left: 0.85rem; position: relative;
+}
+.bp-list li::before {
+  content: '▸';
+  position: absolute; left: 0;
+  color: var(--ms); font-size: 0.7rem; top: 2px;
+}
+.bp-list li strong { color: var(--heading); font-weight: 600; }
+
+/* resource link sections */
+.res-links-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.85rem;
+}
+@media (max-width: 1100px) { .res-links-grid { grid-template-columns: 1fr; } }
+
+.res-section {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: var(--shadow);
+}
+.res-section-title {
+  font-size: 0.7rem; font-weight: 700; letter-spacing: 0.07em;
+  text-transform: uppercase; padding: 0.55rem 0.9rem;
+  border-bottom: 1px solid var(--border);
+}
+.res-title-cribl { background: var(--cribl-bg); color: var(--cribl); border-bottom-color: var(--cribl-bdr); }
+.res-title-ms    { background: var(--ms-bg);    color: var(--ms);    border-bottom-color: var(--ms-bdr); }
+.res-title-cs    { background: var(--cs-bg);    color: var(--cs);    border-bottom-color: var(--cs-bdr); }
+
+.res-link-list { padding: 0.35rem 0; }
+
+.res-link {
+  display: flex; align-items: flex-start; gap: 0.6rem;
+  padding: 0.45rem 0.9rem;
+  text-decoration: none;
+  border-bottom: 1px solid var(--surface3);
+  transition: background .12s;
+}
+.res-link:last-child { border-bottom: none; }
+.res-link:hover { background: var(--surface3); }
+.rl-icon { font-size: 0.85rem; flex-shrink: 0; margin-top: 2px; }
+.rl-title { font-size: 0.8rem; font-weight: 500; color: var(--heading); line-height: 1.35; }
+.rl-url { font-family: var(--mono); font-size: 0.63rem; color: var(--txt3); margin-top: 2px; }
+.res-link:hover .rl-title { color: var(--ms); }
+</style>
+</head>
+<body>
+
+<!-- DISCLAIMER -->
+<div id="disclaimer">
+  <div class="d-icon">⚠️</div>
+  <div class="d-text"><strong>AI-Generated Reference — No Warranty.</strong> This tool is for informational purposes only. Content is sourced from publicly available resources including docs.cribl.io, CrowdStrike, and Microsoft documentation. It may be incomplete, inaccurate, or out of date. This is not official guidance. Always verify against current official documentation before implementation. No liability is accepted for decisions made based on this content.</div>
+  <button onclick="document.getElementById('disclaimer').style.display='none'">Dismiss ✕</button>
+</div>
+
+<div class="shell">
+
+<!-- SIDEBAR -->
+<div class="sidebar">
+  <div class="sb-logo">
+    <div class="sb-logo-title">Microsoft → Cribl → NG SIEM</div>
+    <div class="sb-logo-sub">Source Explorer · docs.cribl.io</div>
+  </div>
+  <div class="sb-search">
+    <input type="text" id="sbSearch" placeholder="Search sources…" oninput="renderNav()">
+  </div>
+  <div class="sb-filters">
+    <div class="fc active" onclick="setFilter('all',this)">All</div>
+    <div class="fc" onclick="setFilter('hub',this)">Event Hub</div>
+    <div class="fc" onclick="setFilter('api',this)">API Pull</div>
+  </div>
+  <div class="sb-nav" id="sbNav"></div>
+</div>
+
+<!-- MAIN -->
+<div class="main">
+  <div class="topbar">
+    <div class="tb-title" id="tbTitle">Source Explorer</div>
+    <div class="tb-tabs">
+      <div class="tb-tab active" onclick="showPanel('explorer',this)">Pipeline Explorer</div>
+      <div class="tb-tab" onclick="showPanel('matrix',this)">Pipeline Matrix</div>
+      <div class="tb-tab" onclick="showPanel('runsheet',this)">Build Run Sheet</div>
+      <div class="tb-tab" onclick="showPanel('resources',this)">Resources &amp; Best Practices</div>
+    </div>
+  </div>
+
+  <div class="panels">
+
+    <!-- EXPLORER -->
+    <div class="panel active" id="p-explorer">
+      <div class="welcome" id="welcomeMsg">
+        <div class="welcome-icon">🔷</div>
+        <h2>Select a source from the left panel</h2>
+        <p>Choose a Microsoft data source to see the end-to-end configuration flow: log origin → Azure transport → Cribl Stream → CrowdStrike NG SIEM via Cribl Connector.</p>
+      </div>
+      <div id="sourceDetail" style="display:none"></div>
+    </div>
+
+    <!-- MATRIX -->
+    <div class="panel" id="p-matrix">
+      <div class="matrix-controls">
+        <span style="font-size:0.75rem;font-weight:600;color:var(--txt2)">Filter:</span>
+        <button class="mx-filter-btn active" onclick="mxFilter('all',this)">All</button>
+        <button class="mx-filter-btn" onclick="mxFilter('hub',this)">Event Hub</button>
+        <button class="mx-filter-btn" onclick="mxFilter('api',this)">API Pull</button>
+        <button class="mx-filter-btn" onclick="mxFilter('wef',this)">WEF / File</button>
+        <input type="text" class="mx-search" id="mxSearch" placeholder="Search sources…" oninput="renderMatrix()">
+      </div>
+      <div class="matrix-tbl-wrap">
+        <table>
+          <thead><tr>
+            <th class="th-ms" onclick="mxSort('name')">Data Source<span class="sort-ind">↕</span></th>
+            <th class="th-ms" onclick="mxSort('method')">Log Collection Method<span class="sort-ind">↕</span></th>
+            <th class="th-cr" onclick="mxSort('method')">Cribl Ingest / Collect Method<span class="sort-ind">↕</span></th>
+            <th class="th-cs">NG SIEM Connector</th>
+            <th class="th-cs" onclick="mxSort('parser')">NG SIEM Parser Name<span class="sort-ind">↕</span></th>
+            <th class="th-cs">Supported Parser</th>
+          </tr></thead>
+          <tbody id="mxBody"></tbody>
+        </table>
+      </div>
+      <div class="matrix-note">Click any row to open source detail. Click column headers to sort. Parser IDs from CrowdStrike NG SIEM. Ingestion methods from <a href="https://docs.cribl.io/stream/" target="_blank">docs.cribl.io/stream</a>.</div>
+    </div>
+
+    <!-- RUNSHEET -->
+    <div class="panel" id="p-runsheet">
+      <div class="rs-header">
+        <div class="rs-header-left">
+          <h2>Build Your Collection Run Sheet</h2>
+          <p>Select the sources you want to onboard. A numbered step-by-step run sheet will be generated below with reference links for each source.</p>
+        </div>
+        <div class="rs-actions">
+          <button class="btn btn-primary" onclick="selectAll()">Select All</button>
+          <button class="btn btn-secondary" onclick="clearAll()">Clear All</button>
+          <button class="btn btn-secondary" onclick="exportRunSheet()">Export HTML</button>
+        </div>
+      </div>
+      <div class="picker-wrap">
+        <div class="picker-col">
+          <h3>Available Sources</h3>
+          <div class="picker-list" id="rsPickerList"></div>
+        </div>
+        <div class="picker-col">
+          <h3>Selected (<span id="rsCount">0</span>)</h3>
+          <div class="picker-list" id="rsSelectedList"></div>
+        </div>
+      </div>
+      <div class="rs-output" id="rsOutput">
+        <div class="rs-empty">Select sources above to generate your run sheet</div>
+      </div>
+    </div>
+
+    <!-- RESOURCES -->
+    <div class="panel" id="p-resources">
+      <div class="res-header">
+        <h2>Resources &amp; Best Practices</h2>
+        <p>Curated reference links and architectural best practice guidance for the Microsoft → Cribl → CrowdStrike NG SIEM pipeline. Information sourced from publicly available documentation.</p>
+      </div>
+
+      <!-- BEST PRACTICES -->
+      <div class="sec-ttl" style="margin-top:1.2rem">Architectural Best Practices</div>
+      <div class="bp-grid">
+
+        <div class="bp-card bp-azure">
+          <div class="bp-card-hdr">
+            <span class="bp-ico">⚡</span>
+            <div>
+              <div class="bp-title">Azure Event Hub Design</div>
+              <div class="bp-sub">Microsoft Transport Layer</div>
+            </div>
+          </div>
+          <ul class="bp-list">
+            <li><strong>One Event Hub per log source type.</strong> Mixing log types in a single hub causes Kafka consumer group rebalancing in Cribl, which interrupts all sources sharing that Group ID.</li>
+            <li><strong>Standard+ tier only.</strong> The Basic tier does not support the SASL PLAIN authentication method required by Cribl Stream.</li>
+            <li><strong>Size your namespace throughput units (TUs)</strong> before go-live. Each TU supports 1 MB/s or 1,000 events/s ingress — whichever is hit first. A Premium namespace supports up to 100 partitions per hub.</li>
+            <li><strong>Enable 7-day retention</strong> on Event Hubs during initial setup to allow replay if Cribl is misconfigured or offline at launch.</li>
+            <li><strong>Use dedicated Shared Access Policies</strong> per hub rather than reusing the root RootManageSharedAccessKey in production.</li>
+            <li><strong>Firewall rules may be required.</strong> Event Hubs uses binary TCP (not HTTP) — ensure port 9093 is open from Cribl workers to the Event Hub namespace endpoint.</li>
+          </ul>
+        </div>
+
+        <div class="bp-card bp-cribl">
+          <div class="bp-card-hdr">
+            <span class="bp-ico">⚙️</span>
+            <div>
+              <div class="bp-title">Cribl Stream Configuration</div>
+              <div class="bp-sub">Pipeline & Routing</div>
+            </div>
+          </div>
+          <ul class="bp-list">
+            <li><strong>Unique Group ID per Event Hub source.</strong> Sharing a Group ID across sources means a state change (Worker crash, config deploy) will trigger rebalancing across all sources in that group, causing data loss windows.</li>
+            <li><strong>Never use $Default as a Group ID</strong> in production — this is a shared group that other consumers may also subscribe to.</li>
+            <li><strong>Always add an Event Breaker Function</strong> in-pipeline for Event Hub sources. Azure Event Hubs does not natively support Event Breakers — batched records[] arrays will not be split without it.</li>
+            <li><strong>Fix per-event timestamps with Eval.</strong> Event Hub batches carry a group-level timestamp; individual events need their own timestamp extracted from the raw payload.</li>
+            <li><strong>Enable Persistent Queues (PQ)</strong> on the CrowdStrike NG SIEM destination to buffer events during backpressure or downstream outages without data loss.</li>
+            <li><strong>Clone to object storage</strong> (Azure Blob / S3) for compliance archive and replay capability. Cribl Search can query the archive using KQL.</li>
+            <li><strong>Set Ingestion lag &gt; 0</strong> on O365 Activity Sources. Microsoft's delivery delay is 60–90 minutes — leaving this at default 0 causes missed events.</li>
+            <li><strong>Manage O365 subscriptions externally.</strong> Cribl cannot start or stop Office 365 Management Activity API subscriptions — use curl or a dedicated script before enabling the source in Cribl.</li>
+          </ul>
+        </div>
+
+        <div class="bp-card bp-cs">
+          <div class="bp-card-hdr">
+            <span class="bp-ico">🔴</span>
+            <div>
+              <div class="bp-title">CrowdStrike NG SIEM</div>
+              <div class="bp-sub">Connector & Parser</div>
+            </div>
+          </div>
+          <ul class="bp-list">
+            <li><strong>Always use the Cribl Data Connector</strong> — not a generic HEC connector. The Cribl-specific connector unlocks future enhancements and allows filtering by Cribl Data Connector in NG SIEM.</li>
+            <li><strong>One connector per vendor/product pair.</strong> Each connector generates its own HEC endpoint and API key. Do not reuse a connector for multiple log sources.</li>
+            <li><strong>Preserve _raw.</strong> Default NG SIEM parsers expect data in the vendor's original format. Do not restructure or re-key events before sending — only filter, redact, or sample.</li>
+            <li><strong>Clone default parsers before editing.</strong> NG SIEM will not allow editing of built-in parsers in-place — clone first, then modify the copy.</li>
+            <li><strong>Test parsers with real _raw samples.</strong> Copy _raw from Cribl's sample data output → paste into the NG SIEM Parser editor → Add test → Test Parser to validate field extraction before go-live.</li>
+            <li><strong>Enable round-robin DNS</strong> on the Cribl NG SIEM destination for load balancing across LogScale nodes.</li>
+            <li><strong>Validate post-deployment</strong> via NG SIEM Event Search → Source: Third Party. Destination status in Cribl: blue = pending, green = active.</li>
+          </ul>
+        </div>
+
+        <div class="bp-card bp-api">
+          <div class="bp-card-hdr">
+            <span class="bp-ico">🔌</span>
+            <div>
+              <div class="bp-title">API Pull Sources (O365)</div>
+              <div class="bp-sub">Activity, Message Trace, Services</div>
+            </div>
+          </div>
+          <ul class="bp-list">
+            <li><strong>Application permissions only.</strong> All O365 API sources (Activity, Services, Message Trace) require Application-type permissions in Azure AD. Delegated permissions are not sufficient and will fail silently.</li>
+            <li><strong>Message Trace date offsets.</strong> Always configure Date range start: -3h@h and Date range end: -2h@h to compensate for delivery delay. Without this, recent events will be missed on every poll cycle.</li>
+            <li><strong>Polling intervals must divide evenly into 60.</strong> O365 Services Source uses a cron-based schedule — intervals like 23 or 45 minutes will be rejected. Use: 1, 2, 3, 4, 5, 6, 10, 12, 15, 20, or 60.</li>
+            <li><strong>Monitor the Job Inspector</strong> for stuck jobs. Scheduled collector jobs can enter a zombie state — set a Job Timeout to auto-terminate long-running stuck jobs. Navigate to Monitoring › System › Job Inspector.</li>
+          </ul>
+        </div>
+
+      </div>
+
+      <!-- RESOURCES -->
+      <div class="sec-ttl" style="margin-top:1.75rem">Documentation &amp; Reference Links</div>
+      <div class="res-links-grid">
+
+        <div class="res-section">
+          <div class="res-section-title res-title-cribl">Cribl Stream — Microsoft Sources</div>
+          <div class="res-link-list">
+            <a class="res-link" href="https://docs.cribl.io/stream/sources-azure-event-hubs/" target="_blank">
+              <span class="rl-icon">📄</span><div><div class="rl-title">Azure Event Hubs Source</div><div class="rl-url">docs.cribl.io/stream/sources-azure-event-hubs</div></div>
+            </a>
+            <a class="res-link" href="https://docs.cribl.io/stream/usecase-azure-event-hubs/" target="_blank">
+              <span class="rl-icon">📄</span><div><div class="rl-title">Azure Event Hubs Integration Guide</div><div class="rl-url">docs.cribl.io/stream/usecase-azure-event-hubs</div></div>
+            </a>
+            <a class="res-link" href="https://docs.cribl.io/stream/sources-office-365-activity/" target="_blank">
+              <span class="rl-icon">📄</span><div><div class="rl-title">Office 365 Activity Source</div><div class="rl-url">docs.cribl.io/stream/sources-office-365-activity</div></div>
+            </a>
+            <a class="res-link" href="https://docs.cribl.io/stream/sources-office-365-services/" target="_blank">
+              <span class="rl-icon">📄</span><div><div class="rl-title">Office 365 Services Source (Graph API)</div><div class="rl-url">docs.cribl.io/stream/sources-office-365-services</div></div>
+            </a>
+            <a class="res-link" href="https://docs.cribl.io/stream/sources-office365-msg-trace/" target="_blank">
+              <span class="rl-icon">📄</span><div><div class="rl-title">Office 365 Message Trace Source</div><div class="rl-url">docs.cribl.io/stream/sources-office365-msg-trace</div></div>
+            </a>
+            <a class="res-link" href="https://docs.cribl.io/stream/sources-azure-blob/" target="_blank">
+              <span class="rl-icon">📄</span><div><div class="rl-title">Azure Blob Storage Source</div><div class="rl-url">docs.cribl.io/stream/sources-azure-blob</div></div>
+            </a>
+            <a class="res-link" href="https://docs.cribl.io/stream/sources-wef/" target="_blank">
+              <span class="rl-icon">📄</span><div><div class="rl-title">Windows Event Forwarder Source</div><div class="rl-url">docs.cribl.io/stream/sources-wef</div></div>
+            </a>
+          </div>
+        </div>
+
+        <div class="res-section">
+          <div class="res-section-title res-title-cribl">Cribl Stream — Pipeline &amp; Destination</div>
+          <div class="res-link-list">
+            <a class="res-link" href="https://docs.cribl.io/stream/destinations-crowdstrike-next-gen-siem/" target="_blank">
+              <span class="rl-icon">📄</span><div><div class="rl-title">CrowdStrike Falcon NG SIEM Destination</div><div class="rl-url">docs.cribl.io/stream/destinations-crowdstrike-next-gen-siem</div></div>
+            </a>
+            <a class="res-link" href="https://docs.cribl.io/stream/event-breaker-function/" target="_blank">
+              <span class="rl-icon">📄</span><div><div class="rl-title">Event Breaker Function</div><div class="rl-url">docs.cribl.io/stream/event-breaker-function</div></div>
+            </a>
+            <a class="res-link" href="https://docs.cribl.io/stream/event-breaker-type-azure-vnet-flow/" target="_blank">
+              <span class="rl-icon">📄</span><div><div class="rl-title">Azure VNet Flow Event Breaker</div><div class="rl-url">docs.cribl.io/stream/event-breaker-type-azure-vnet-flow</div></div>
+            </a>
+            <a class="res-link" href="https://docs.cribl.io/stream/routes/" target="_blank">
+              <span class="rl-icon">📄</span><div><div class="rl-title">Routes &amp; Pipelines</div><div class="rl-url">docs.cribl.io/stream/routes</div></div>
+            </a>
+            <a class="res-link" href="https://docs.cribl.io/stream/clone-function/" target="_blank">
+              <span class="rl-icon">📄</span><div><div class="rl-title">Clone Function (fan-out to multiple destinations)</div><div class="rl-url">docs.cribl.io/stream/clone-function</div></div>
+            </a>
+            <a class="res-link" href="https://docs.cribl.io/stream/deploy-crowdstream/" target="_blank">
+              <span class="rl-icon">📄</span><div><div class="rl-title">CrowdStream — Native Cribl in Falcon Platform</div><div class="rl-url">docs.cribl.io/stream/deploy-crowdstream</div></div>
+            </a>
+            <a class="res-link" href="https://docs.cribl.io/stream/usecase-azure-sentinel/" target="_blank">
+              <span class="rl-icon">📄</span><div><div class="rl-title">Cribl Azure Workspace Preparation Guide</div><div class="rl-url">docs.cribl.io/stream/usecase-azure-sentinel</div></div>
+            </a>
+          </div>
+        </div>
+
+        <div class="res-section">
+          <div class="res-section-title res-title-ms">Microsoft — Logging &amp; Streaming</div>
+          <div class="res-link-list">
+            <a class="res-link" href="https://learn.microsoft.com/en-us/microsoft-365/security/defender/streaming-api-event-hub?view=o365-worldwide" target="_blank">
+              <span class="rl-icon">🔷</span><div><div class="rl-title">M365 Defender Streaming API to Event Hub</div><div class="rl-url">learn.microsoft.com · M365 Defender Streaming API</div></div>
+            </a>
+            <a class="res-link" href="https://learn.microsoft.com/en-us/azure/event-hubs/event-hubs-create" target="_blank">
+              <span class="rl-icon">🔷</span><div><div class="rl-title">Create an Azure Event Hub</div><div class="rl-url">learn.microsoft.com · Event Hubs quickstart</div></div>
+            </a>
+            <a class="res-link" href="https://learn.microsoft.com/en-us/azure/active-directory/reports-monitoring/howto-integrate-activity-logs-with-azure-monitor-logs" target="_blank">
+              <span class="rl-icon">🔷</span><div><div class="rl-title">Entra ID Diagnostic Settings → Event Hub</div><div class="rl-url">learn.microsoft.com · Entra ID monitoring</div></div>
+            </a>
+            <a class="res-link" href="https://learn.microsoft.com/en-us/office/office-365-management-api/get-started-with-office-365-management-apis" target="_blank">
+              <span class="rl-icon">🔷</span><div><div class="rl-title">O365 Management Activity API — Getting Started</div><div class="rl-url">learn.microsoft.com · O365 Management API</div></div>
+            </a>
+            <a class="res-link" href="https://learn.microsoft.com/en-us/azure/key-vault/general/howto-logging" target="_blank">
+              <span class="rl-icon">🔷</span><div><div class="rl-title">Azure Key Vault Logging</div><div class="rl-url">learn.microsoft.com · Key Vault diagnostic logs</div></div>
+            </a>
+            <a class="res-link" href="https://learn.microsoft.com/en-us/azure/firewall/firewall-diagnostics" target="_blank">
+              <span class="rl-icon">🔷</span><div><div class="rl-title">Azure Firewall Diagnostic Logs</div><div class="rl-url">learn.microsoft.com · Azure Firewall monitoring</div></div>
+            </a>
+            <a class="res-link" href="https://learn.microsoft.com/en-us/graph/auth-register-app-v2" target="_blank">
+              <span class="rl-icon">🔷</span><div><div class="rl-title">Register an App with Microsoft Identity Platform</div><div class="rl-url">learn.microsoft.com · App registration guide</div></div>
+            </a>
+          </div>
+        </div>
+
+        <div class="res-section">
+          <div class="res-section-title res-title-cs">CrowdStrike NG SIEM</div>
+          <div class="res-link-list">
+            <a class="res-link" href="https://docs.cribl.io/stream/destinations-crowdstrike-next-gen-siem/" target="_blank">
+              <span class="rl-icon">🔴</span><div><div class="rl-title">NG SIEM Cribl Data Connector Setup</div><div class="rl-url">docs.cribl.io · NG SIEM destination</div></div>
+            </a>
+            <a class="res-link" href="https://www.crowdstrike.com/tech-hub/ng-siem/seamless-data-onboarding-with-crowdstrike-falcon-next-gen-siem-and-cribl-via-crowdstream/" target="_blank">
+              <span class="rl-icon">🔴</span><div><div class="rl-title">Seamless Data Onboarding with Cribl &amp; NG SIEM</div><div class="rl-url">crowdstrike.com · Tech Hub article</div></div>
+            </a>
+            <a class="res-link" href="https://cribl.io/blog/cribl-and-crowdstrike-deepen-partnership-with-falcon-next-gen-siem-integration/" target="_blank">
+              <span class="rl-icon">🔴</span><div><div class="rl-title">Cribl &amp; CrowdStrike NG SIEM Integration Guide</div><div class="rl-url">cribl.io · Integration blog post</div></div>
+            </a>
+            <a class="res-link" href="https://packs.cribl.io/packs/microsoft-activity" target="_blank">
+              <span class="rl-icon">📦</span><div><div class="rl-title">Microsoft Office Activity &amp; Azure Logs Pack</div><div class="rl-url">packs.cribl.io · Community pack</div></div>
+            </a>
+          </div>
+        </div>
+
+      </div>
+    </div><!-- /p-resources -->
+
+  </div>
+</div>
+</div>
+
+<script>
+// ══════════════════════════════════════
+// DATA
+// ══════════════════════════════════════
+const SOURCES = [
+  { id:'def-o365', grp:'M365 / Office 365', icon:'🛡️', name:'Defender for Office 365',
+    parser:'microsoft-defendero365-graphapi', method:'hub+api',
+    ingest:true, investigate:true,
+    desc:'Microsoft Defender for Office 365 protects against email-based threats. It generates ATP alerts, Safe Links click events, Safe Attachment verdicts, anti-phishing hits, and anti-spam actions. Best ingested via the M365 Defender Streaming API (real-time push to a dedicated Event Hub) or via the Office 365 Management Activity API.',
+    msSteps:[
+      ['Enable M365 Defender Streaming API in the Security portal','https://learn.microsoft.com/en-us/microsoft-365/security/defender/streaming-api?view=o365-worldwide','Security portal › Settings › Microsoft Defender XDR › Streaming API'],
+      ['Create a dedicated Azure Event Hub namespace — Standard+ tier only. Basic tier lacks the PLAIN authentication method required by Cribl.','https://learn.microsoft.com/en-us/azure/event-hubs/event-hubs-create','Portal: Create Event Hub namespace → select Standard tier'],
+      ['Create one Event Hub named e.g. <em>defender-o365</em> inside that namespace. This hub must be dedicated exclusively to Defender O365 logs — mixing other log sources into the same hub causes Kafka consumer group rebalancing in Cribl which disrupts all sources sharing that Group ID.','https://learn.microsoft.com/en-us/azure/event-hubs/event-hubs-create','Best practice: 1 hub = 1 log source type'],
+      ['In Streaming API settings, select "Forward events to Azure Event Hub" and choose the defender-o365 hub.','https://learn.microsoft.com/en-us/microsoft-365/security/defender/streaming-api-event-hub?view=o365-worldwide','Streaming API → select hub resource'],
+      ['Copy the Event Hub namespace Hostname and the Connection String Primary Key from Shared Access Policies → RootManageSharedAccessKey.','https://learn.microsoft.com/en-us/azure/event-hubs/event-hubs-get-connection-string','Required for Cribl source configuration'],
+    ],
+    criblSteps:[
+      ['Navigate to Data › Sources → Azure Event Hubs → Add Source.','https://docs.cribl.io/stream/sources-azure-event-hubs/','docs.cribl.io/stream/sources-azure-event-hubs'],
+      ['Broker: &lt;namespace&gt;.servicebus.windows.net:9093 — Event Hubs uses binary TCP, not HTTP. No proxy support; firewall rules may be required.','https://docs.cribl.io/stream/sources-azure-event-hubs/','Port 9093 required'],
+      ['Event Hub Name: defender-o365 — this is the Kafka Topic name.','https://docs.cribl.io/stream/sources-azure-event-hubs/','Must match the exact hub name'],
+      ['Group ID: set a unique value e.g. cribl-defender-o365. Never use $Default or share a Group ID across sources — per Cribl docs, sharing Group IDs causes cross-source rebalancing and potential data loss.','https://docs.cribl.io/stream/sources-azure-event-hubs/#controlling-rebalancing','Critical: unique Group ID per hub'],
+      ['Authentication: SASL Mechanism = PLAIN · Username = $ConnectionString · Password = Connection String Primary Key · Validate Server Certs = OFF.','https://docs.cribl.io/stream/sources-azure-event-hubs/','Auth configuration'],
+      ['In the pipeline, add the Event Breaker Function to split the records[] JSON array into individual events. Azure Event Hubs does not natively support Event Breakers.','https://docs.cribl.io/stream/event-breaker-function/','Functions › Event Breaker'],
+      ['Add an Eval function to assign the correct per-event timestamp. Event Hub batches carry a group-level timestamp, not per-event.','https://docs.cribl.io/stream/eval-function/','Fix event timestamps'],
+      ['Route to the CrowdStrike NG SIEM destination. Enable Persistent Queue (PQ) on the destination for backpressure protection.','https://docs.cribl.io/stream/destinations-crowdstrike-next-gen-siem/','Data › Destinations'],
+    ],
+    csSteps:[
+      ['In CrowdStrike NG SIEM: navigate to Data Onboarding → search "Cribl" → select the Cribl Data Connector tile. Use this connector type — not generic HEC — for full integration features.','https://docs.cribl.io/stream/destinations-crowdstrike-next-gen-siem/','NG SIEM › Data Onboarding'],
+      ['Select Vendor: Microsoft · Product: Defender for Office 365 · Enter a connector name · Assign parser: microsoft-defendero365-graphapi · Accept Terms → Save.','https://docs.cribl.io/stream/destinations-crowdstrike-next-gen-siem/','One connector per vendor/product pair'],
+      ['Wait for Initialised status. Click "Generate API key" — this auto-creates a HEC endpoint for this connector.','https://docs.cribl.io/stream/destinations-crowdstrike-next-gen-siem/','HEC is created automatically'],
+      ['Copy the API key and Endpoint URL. In Cribl: Data › Destinations → CrowdStrike Falcon Next-Gen SIEM → Add Destination → paste Endpoint URL + API key → Save → Commit &amp; Deploy.','https://docs.cribl.io/stream/destinations-crowdstrike-next-gen-siem/','Only send _raw field — do not restructure events'],
+      ['Validate: In NG SIEM, Event Search → Source: Third Party → Run. To test parser: copy _raw from Cribl sample data → paste into NG SIEM Parser editor → Test Parser.','https://docs.cribl.io/stream/destinations-crowdstrike-next-gen-siem/','Status indicator: blue → green = active'],
+    ],
+    flowNodes:[
+      {type:'fn-ms',icon:'🛡️',lbl:'Microsoft',typ:'Defender for O365',rows:[
+        {k:'Service',v:'M365 Defender Streaming API'},
+        {k:'Log Types',v:'ATP Alerts, Safe Links\nSafe Attach, Phishing, Anti-spam'},
+      ]},
+      {type:'fn-col',icon:'⚡',lbl:'Azure Event Hub',typ:'1 dedicated hub only',rows:[
+        {k:'Hub Name',v:'defender-o365\n(ONLY Defender O365 logs)'},
+        {k:'Tier',v:'Standard+ required'},
+        {k:'Protocol',v:'Binary TCP · Port 9093'},
+        {warn:'⚠ Dedicated hub per source. Mixing log types causes Kafka rebalancing in Cribl.'},
+      ]},
+      {type:'fn-cr',icon:'⚙️',lbl:'Cribl Stream',typ:'Azure Event Hubs Source',rows:[
+        {k:'Source',v:'Azure Event Hubs Source',link:'https://docs.cribl.io/stream/sources-azure-event-hubs/'},
+        {k:'Group ID',v:'cribl-defender-o365\n(unique — never shared)'},
+        {k:'Pipeline',v:'Event Breaker Fn → records[]\nEval → fix timestamps\nMask → redact PII'},
+        {info:'ℹ Enable PQ on destination. Clone to Blob/S3 for archive.'},
+      ]},
+      {type:'fn-cs',icon:'🔴',lbl:'CrowdStrike NG SIEM',typ:'Cribl Connector → HEC',rows:[
+        {k:'Connector',v:'Cribl Data Connector',link:'https://docs.cribl.io/stream/destinations-crowdstrike-next-gen-siem/'},
+        {k:'Parser',v:'microsoft-defendero365-graphapi'},
+        {k:'HEC',v:'Auto-created on initialise\nCopy API key + Endpoint → Cribl'},
+        {good:'✓ Parser supported · Data ingest active'},
+      ]},
+    ]
+  },
+
+  { id:'def-xdr', grp:'M365 / Office 365', icon:'⚔️', name:'Defender XDR Events',
+    parser:'microsoft-defendero365-eventhubs', method:'hub',
+    ingest:true, investigate:true,
+    desc:'M365 Defender XDR Streaming API delivers raw advanced hunting telemetry — device, identity, email, and cloud app events — in near-real-time via a dedicated Event Hub. Uses a distinct parser (microsoft-defendero365-eventhubs) from the alert/Graph API parser.',
+    msSteps:[
+      ['In M365 Defender portal: Settings › Microsoft Defender XDR › Streaming API › Add.','https://learn.microsoft.com/en-us/microsoft-365/security/defender/streaming-api-event-hub?view=o365-worldwide','Streaming API configuration'],
+      ['Create a dedicated Event Hub: e.g. defender-xdr-events (Standard+ tier). Do NOT reuse the Defender O365 alerts hub — they use different parsers and event schemas.','https://learn.microsoft.com/en-us/azure/event-hubs/event-hubs-create','Separate hub is required'],
+      ['Select event types (DeviceEvents, EmailEvents, IdentityLogonEvents etc.) and point to the defender-xdr-events hub.','https://learn.microsoft.com/en-us/microsoft-365/security/defender/streaming-api-event-hub?view=o365-worldwide','Forward events to Event Hub'],
+      ['Copy Namespace Hostname and Connection String Primary Key from Shared Access Policies.','https://learn.microsoft.com/en-us/azure/event-hubs/event-hubs-get-connection-string','Credentials for Cribl configuration'],
+    ],
+    criblSteps:[
+      ['Create Azure Event Hubs Source for the defender-xdr-events hub.','https://docs.cribl.io/stream/sources-azure-event-hubs/','Data › Sources › Azure Event Hubs'],
+      ['Group ID: unique e.g. cribl-xdr-events. Event Hub Name: defender-xdr-events. SASL PLAIN · Validate Certs: OFF.','https://docs.cribl.io/stream/sources-azure-event-hubs/','Unique Group ID — never shared across sources'],
+      ['Pipeline: Event Breaker Function → unroll records[] → Eval timestamp fix.','https://docs.cribl.io/stream/event-breaker-function/','Required for all Event Hub sources'],
+      ['Route to NG SIEM destination with PQ enabled.','https://docs.cribl.io/stream/destinations-crowdstrike-next-gen-siem/','Enable Persistent Queue on destination'],
+    ],
+    csSteps:[
+      ['Create Cribl Data Connector · Vendor: Microsoft · Product: Defender XDR Events · Parser: microsoft-defendero365-eventhubs. Note: different parser from Defender O365 alerts connector.','https://docs.cribl.io/stream/destinations-crowdstrike-next-gen-siem/','One connector per product'],
+      ['Generate API key → copy Endpoint URL + key → configure in Cribl NG SIEM destination → Commit &amp; Deploy.','https://docs.cribl.io/stream/destinations-crowdstrike-next-gen-siem/','HEC auto-created by connector'],
+      ['Validate: Event Search → Source: Third Party. Destination status: blue → green = active.','https://docs.cribl.io/stream/destinations-crowdstrike-next-gen-siem/','Confirm data flowing'],
+    ],
+    flowNodes:[
+      {type:'fn-ms',icon:'⚔️',lbl:'Microsoft',typ:'M365 XDR Streaming API',rows:[
+        {k:'Event Types',v:'DeviceEvents, EmailEvents\nIdentityLogonEvents, CloudApp'},
+        {k:'Method',v:'Streaming API → Event Hub (push)'},
+      ]},
+      {type:'fn-col',icon:'⚡',lbl:'Azure Event Hub',typ:'Dedicated hub',rows:[
+        {k:'Hub Name',v:'defender-xdr-events\n(XDR events ONLY)'},
+        {k:'Tier',v:'Standard+ required'},
+        {warn:'⚠ Separate from defender-o365 hub — different parsers required for each.'},
+      ]},
+      {type:'fn-cr',icon:'⚙️',lbl:'Cribl Stream',typ:'Event Hubs Source',rows:[
+        {k:'Source',v:'Azure Event Hubs Source',link:'https://docs.cribl.io/stream/sources-azure-event-hubs/'},
+        {k:'Group ID',v:'cribl-xdr-events (unique)'},
+        {k:'Pipeline',v:'Event Breaker Fn → Eval timestamp'},
+      ]},
+      {type:'fn-cs',icon:'🔴',lbl:'CrowdStrike NG SIEM',typ:'Cribl Connector → HEC',rows:[
+        {k:'Parser',v:'microsoft-defendero365-eventhubs'},
+        {k:'HEC',v:'Auto-created → paste into Cribl dest'},
+        {good:'✓ Parser supported · Data ingest active'},
+      ]},
+    ]
+  },
+
+  { id:'m365-audit', grp:'M365 / Office 365', icon:'📋', name:'M365 Unified Audit Log',
+    parser:'microsoft-365', method:'api',
+    ingest:true, investigate:true,
+    desc:'The M365 Unified Audit Log captures activity across Exchange Online, SharePoint, OneDrive, Teams, and Azure AD via the Office 365 Management Activity API. The microsoft-365 parser also covers Teams, OneDrive, and SharePoint individually.',
+    msSteps:[
+      ['Register an Azure AD Application (App Registration) in Entra ID.','https://learn.microsoft.com/en-us/graph/auth-register-app-v2','Portal: Entra ID › App Registrations › New registration'],
+      ['Grant API permissions — permission type MUST be Application (not Delegated): ActivityFeed.Read for all content types except DLP; ActivityFeed.ReadDlp for the DLP.All content type.','https://learn.microsoft.com/en-us/office/office-365-management-api/get-started-with-office-365-management-apis','Application type is required — Delegated is not sufficient'],
+      ['Note the Application (client) ID, Directory (tenant) ID, and create a Client Secret in the App Registration.','https://learn.microsoft.com/en-us/azure/active-directory/develop/howto-create-service-principal-portal','These three values are needed for Cribl configuration'],
+      ['Start content subscriptions via curl before enabling in Cribl. Cribl cannot start or stop O365 subscriptions — one subscription per content type is required.','https://docs.cribl.io/stream/sources-office-365-activity/','See Cribl docs for curl commands to start subscriptions'],
+    ],
+    criblSteps:[
+      ['Create O365 Activity Source: Data › Sources › Office 365 › Activity.','https://docs.cribl.io/stream/sources-office-365-activity/','docs.cribl.io/stream/sources-office-365-activity'],
+      ['Enter Tenant ID, App ID, Client Secret. Enable required content types: Audit.General, Audit.Exchange, Audit.SharePoint, Audit.AzureActiveDirectory, DLP.All. Each enabled type creates a separate scheduled Collection job.','https://docs.cribl.io/stream/sources-office-365-activity/','Each content type = independent job'],
+      ['Set Ingestion lag (minutes) greater than 0 — recommend 120. Default of 0 causes missed events as Microsoft delivery lag is 60–90+ minutes.','https://docs.cribl.io/stream/sources-office-365-activity/','Critical: do not leave at default of 0'],
+      ['Select the correct Subscription Plan: Office 365 Enterprise, GCC, GCC High, or DoD.','https://docs.cribl.io/stream/sources-office-365-activity/','Must match your tenant type'],
+      ['Route to CrowdStrike NG SIEM destination with PQ enabled.','https://docs.cribl.io/stream/destinations-crowdstrike-next-gen-siem/','Enable Persistent Queue'],
+    ],
+    csSteps:[
+      ['Create Cribl Data Connector · Vendor: Microsoft · Product: 365 Unified Audit Log · Parser: microsoft-365. This parser also covers Teams, OneDrive, and SharePoint.','https://docs.cribl.io/stream/destinations-crowdstrike-next-gen-siem/','One connector'],
+      ['Generate API key → copy Endpoint URL + key → configure Cribl NG SIEM destination → Commit &amp; Deploy.','https://docs.cribl.io/stream/destinations-crowdstrike-next-gen-siem/','HEC auto-created'],
+      ['Validate: Event Search → Source: Third Party → Run.','https://docs.cribl.io/stream/destinations-crowdstrike-next-gen-siem/','Confirm ingestion is working'],
+    ],
+    flowNodes:[
+      {type:'fn-ms',icon:'📋',lbl:'Microsoft',typ:'O365 Mgmt Activity API',rows:[
+        {k:'API',v:'O365 Management Activity API'},
+        {k:'Content Types',v:'Audit.General, .Exchange\n.SharePoint, .AAD, DLP.All'},
+        {k:'Delivery Lag',v:'60–90+ minutes from Microsoft'},
+      ]},
+      {type:'fn-col',icon:'🔌',lbl:'App Registration',typ:'Azure AD App (API Pull)',rows:[
+        {k:'Permissions',v:'ActivityFeed.Read (Application)\nActivityFeed.ReadDlp (Application)'},
+        {k:'No Event Hub',v:'Pull-based — no hub needed'},
+        {warn:'⚠ Start subscriptions via curl before enabling in Cribl. Cribl cannot manage O365 subscriptions.'},
+      ]},
+      {type:'fn-cr',icon:'⚙️',lbl:'Cribl Stream',typ:'O365 Activity Source',rows:[
+        {k:'Source',v:'O365 Activity Source',link:'https://docs.cribl.io/stream/sources-office-365-activity/'},
+        {k:'Ingestion Lag',v:'Set > 0 (recommend 120 min)\nDefault 0 = missed events'},
+        {k:'Jobs',v:'One scheduled job per content type'},
+        {info:'ℹ Monitor via: Monitoring › System › Job Inspector'},
+      ]},
+      {type:'fn-cs',icon:'🔴',lbl:'CrowdStrike NG SIEM',typ:'Cribl Connector → HEC',rows:[
+        {k:'Parser',v:'microsoft-365'},
+        {k:'HEC',v:'Auto-created → paste into Cribl dest'},
+        {good:'✓ Parser supported · Data ingest active'},
+      ]},
+    ]
+  },
+
+  { id:'msg-trace', grp:'M365 / Office 365', icon:'✉️', name:'Microsoft MessageTrace',
+    parser:'microsoft-o365-messagetrace', method:'api',
+    ingest:true, investigate:true,
+    desc:'Office 365 Message Trace provides mail-flow metadata — sender, recipient, subject, routing hops, and delivery status. Used to detect bulk email campaigns, spoofed domains, and data exfiltration via email. Uses a dedicated REST API with significant delivery delay.',
+    msSteps:[
+      ['In Exchange Admin Center, assign Message Tracking and View-Only Recipients roles to the service account.','https://admin.exchange.microsoft.com','admin.exchange.microsoft.com'],
+      ['For OAuth-based access: create an Azure AD App Registration in Entra ID with required Exchange Online API permissions.','https://learn.microsoft.com/en-us/azure/active-directory/develop/howto-create-service-principal-portal','OAuth option is available'],
+    ],
+    criblSteps:[
+      ['Create O365 Message Trace Source: Data › Sources › Office 365 › Message Trace.','https://docs.cribl.io/stream/sources-office365-msg-trace/','docs.cribl.io/stream/sources-office365-msg-trace'],
+      ['Set Date range start: -3h@h and Date range end: -2h@h. Message Trace data is delayed — these offsets compensate for the gap.','https://docs.cribl.io/stream/sources-office365-msg-trace/','Delay compensation is required'],
+      ['Default Report URL: https://reports.office365.com/ecp/reportingwebservice/reporting.svc/MessageTrace. Only change for GCC or DoD tenants.','https://docs.cribl.io/stream/sources-office365-msg-trace/','Adjust only for government tenants'],
+      ['A single Worker processes one collection task per poll interval. Data is paginated — multiple API calls may occur per task.','https://docs.cribl.io/stream/sources-office365-msg-trace/','Monitor via Job Inspector'],
+    ],
+    csSteps:[
+      ['Create Cribl Data Connector · Parser: microsoft-o365-messagetrace.','https://docs.cribl.io/stream/destinations-crowdstrike-next-gen-siem/','One connector'],
+      ['Generate API key → copy Endpoint URL + key → configure Cribl destination → Commit &amp; Deploy.','https://docs.cribl.io/stream/destinations-crowdstrike-next-gen-siem/','HEC auto-created'],
+    ],
+    flowNodes:[
+      {type:'fn-ms',icon:'✉️',lbl:'Microsoft',typ:'Message Trace REST API',rows:[
+        {k:'API',v:'O365 Message Trace REST API'},
+        {k:'Data',v:'Sender, recipient, routing\nDelivery status, hop detail'},
+        {warn:'⚠ Significant delivery delay — always configure date offsets: start -3h@h / end -2h@h'},
+      ]},
+      {type:'fn-col',icon:'🔌',lbl:'Exchange Permissions',typ:'Exchange Admin Role',rows:[
+        {k:'Roles',v:'Message Tracking\nView-Only Recipients'},
+        {k:'Admin Console',v:'admin.exchange.microsoft.com'},
+      ]},
+      {type:'fn-cr',icon:'⚙️',lbl:'Cribl Stream',typ:'Message Trace Source',rows:[
+        {k:'Source',v:'O365 Message Trace Source',link:'https://docs.cribl.io/stream/sources-office365-msg-trace/'},
+        {k:'Date Offsets',v:'Start: -3h@h · End: -2h@h'},
+        {info:'ℹ Configure overlapping time range jobs to prevent gaps in critical environments'},
+      ]},
+      {type:'fn-cs',icon:'🔴',lbl:'CrowdStrike NG SIEM',typ:'Cribl Connector → HEC',rows:[
+        {k:'Parser',v:'microsoft-o365-messagetrace'},
+        {k:'HEC',v:'Auto-created → paste into Cribl dest'},
+        {good:'✓ Parser supported · Data ingest active'},
+      ]},
+    ]
+  },
+
+  { id:'entra-id', grp:'Azure Identity', icon:'🪪', name:'Microsoft Azure Entra ID',
+    parser:'microsoft-entra-id', method:'hub',
+    ingest:true, investigate:true,
+    desc:'Entra ID (formerly Azure AD) logs include sign-in logs, audit logs, identity protection risk events, and conditional access results. Primary source for detecting compromised identities, impossible travel, MFA bypass, and insider threats.',
+    msSteps:[
+      ['In Azure Portal: Entra ID › Monitoring › Diagnostic Settings › Add diagnostic setting.','https://learn.microsoft.com/en-us/azure/active-directory/reports-monitoring/howto-integrate-activity-logs-with-azure-monitor-logs','Portal: Diagnostic Settings'],
+      ['Create a dedicated Event Hub e.g. entra-signins (Standard+ tier). One hub for Entra ID logs only.','https://learn.microsoft.com/en-us/azure/event-hubs/event-hubs-create','Dedicated hub per log type'],
+      ['Select log categories: SignInLogs, AuditLogs, RiskyUsers, RiskEvents, UserRiskEvents. Route to the entra-signins hub.','https://learn.microsoft.com/en-us/azure/active-directory/reports-monitoring/howto-integrate-activity-logs-with-azure-monitor-logs','Select all relevant categories'],
+      ['Copy Namespace Hostname and Connection String Primary Key from Event Hub Shared Access Policies.','https://learn.microsoft.com/en-us/azure/event-hubs/event-hubs-get-connection-string','Credentials needed for Cribl'],
+    ],
+    criblSteps:[
+      ['Create Azure Event Hubs Source for the entra-signins hub.','https://docs.cribl.io/stream/sources-azure-event-hubs/','Data › Sources › Azure Event Hubs'],
+      ['Group ID: unique e.g. cribl-entra-id. Event Hub Name: entra-signins. SASL PLAIN · Validate Certs: OFF.','https://docs.cribl.io/stream/sources-azure-event-hubs/','Never reuse Group IDs across sources'],
+      ['Pipeline: Event Breaker Function → unroll records[] → Eval timestamp fix.','https://docs.cribl.io/stream/event-breaker-function/','Required for all Event Hub sources'],
+      ['Route to NG SIEM destination with PQ enabled.','https://docs.cribl.io/stream/destinations-crowdstrike-next-gen-siem/','Enable Persistent Queue'],
+    ],
+    csSteps:[
+      ['Create Cribl Data Connector · Vendor: Microsoft · Product: Azure Entra ID · Parser: microsoft-entra-id. Preferred over azure-ad for modern tenants.','https://docs.cribl.io/stream/destinations-crowdstrike-next-gen-siem/','One connector'],
+      ['Generate API key → configure Cribl destination → Commit &amp; Deploy.','https://docs.cribl.io/stream/destinations-crowdstrike-next-gen-siem/','HEC auto-created'],
+      ['Validate: Event Search → Source: Third Party. Test parser using sample _raw data from Cribl.','https://docs.cribl.io/stream/destinations-crowdstrike-next-gen-siem/','Confirm data flowing'],
+    ],
+    flowNodes:[
+      {type:'fn-ms',icon:'🪪',lbl:'Microsoft',typ:'Azure Entra ID',rows:[
+        {k:'Service',v:'Entra ID (Azure AD)'},
+        {k:'Categories',v:'SignInLogs, AuditLogs\nRiskyUsers, RiskEvents'},
+        {k:'Method',v:'Diagnostic Settings → Event Hub'},
+      ]},
+      {type:'fn-col',icon:'⚡',lbl:'Azure Event Hub',typ:'Dedicated hub',rows:[
+        {k:'Hub Name',v:'entra-signins\n(Entra ID logs ONLY)'},
+        {k:'Tier',v:'Standard+ required'},
+        {info:'ℹ Can combine Entra categories in one hub — route by category field in Cribl pipeline'},
+      ]},
+      {type:'fn-cr',icon:'⚙️',lbl:'Cribl Stream',typ:'Event Hubs Source',rows:[
+        {k:'Source',v:'Azure Event Hubs Source',link:'https://docs.cribl.io/stream/sources-azure-event-hubs/'},
+        {k:'Group ID',v:'cribl-entra-id (unique)'},
+        {k:'Pipeline',v:'Event Breaker Fn → Eval timestamp'},
+      ]},
+      {type:'fn-cs',icon:'🔴',lbl:'CrowdStrike NG SIEM',typ:'Cribl Connector → HEC',rows:[
+        {k:'Parser',v:'microsoft-entra-id'},
+        {k:'HEC',v:'Auto-created → paste into Cribl dest'},
+        {good:'✓ Parser supported · Data ingest active'},
+      ]},
+    ]
+  },
+
+  { id:'def-identity', grp:'Azure Identity', icon:'🔐', name:'Defender for Identity',
+    parser:'microsoft-defender-identity', method:'hub',
+    ingest:true, investigate:true,
+    desc:'Microsoft Defender for Identity (MDI) monitors on-premises Active Directory and Entra ID for advanced threats including lateral movement, pass-the-hash, Kerberoasting, DCSync, and LDAP reconnaissance.',
+    msSteps:[
+      ['Enable MDI streaming via Diagnostic Settings or M365 Defender Streaming API.','https://learn.microsoft.com/en-us/defender-for-identity/deploy/streaming-api','MDI portal settings'],
+      ['Create dedicated Event Hub: e.g. defender-identity (Standard+ tier).','https://learn.microsoft.com/en-us/azure/event-hubs/event-hubs-create','Dedicated hub for MDI only'],
+      ['Configure forwarding to the defender-identity hub. Copy Hostname and Connection String.','https://learn.microsoft.com/en-us/azure/event-hubs/event-hubs-get-connection-string','Note hub credentials'],
+    ],
+    criblSteps:[
+      ['Create Azure Event Hubs Source · Group ID: cribl-def-identity · Hub Name: defender-identity.','https://docs.cribl.io/stream/sources-azure-event-hubs/','Unique Group ID required'],
+      ['SASL PLAIN · Validate Certs: OFF · Pipeline: Event Breaker Function → Eval timestamp.','https://docs.cribl.io/stream/event-breaker-function/','Standard Event Hub pipeline'],
+      ['Route to NG SIEM destination with PQ enabled.','https://docs.cribl.io/stream/destinations-crowdstrike-next-gen-siem/','Enable PQ'],
+    ],
+    csSteps:[
+      ['Create Cribl Data Connector · Parser: microsoft-defender-identity.','https://docs.cribl.io/stream/destinations-crowdstrike-next-gen-siem/','One connector'],
+      ['Generate API key → configure Cribl destination → Commit &amp; Deploy.','https://docs.cribl.io/stream/destinations-crowdstrike-next-gen-siem/','Validate in Event Search'],
+    ],
+    flowNodes:[
+      {type:'fn-ms',icon:'🔐',lbl:'Microsoft',typ:'Defender for Identity',rows:[
+        {k:'Product',v:'MDI (on-prem AD + Entra hybrid)'},
+        {k:'Detects',v:'Lateral movement, pass-the-hash\nKerberoasting, DCSync, LDAP recon'},
+        {k:'Method',v:'Streaming API → Event Hub'},
+      ]},
+      {type:'fn-col',icon:'⚡',lbl:'Azure Event Hub',typ:'Dedicated hub',rows:[
+        {k:'Hub Name',v:'defender-identity\n(MDI alerts ONLY)'},
+        {k:'Tier',v:'Standard+ required'},
+      ]},
+      {type:'fn-cr',icon:'⚙️',lbl:'Cribl Stream',typ:'Event Hubs Source',rows:[
+        {k:'Source',v:'Azure Event Hubs Source',link:'https://docs.cribl.io/stream/sources-azure-event-hubs/'},
+        {k:'Group ID',v:'cribl-def-identity (unique)'},
+        {k:'Pipeline',v:'Event Breaker Fn → Eval timestamp'},
+      ]},
+      {type:'fn-cs',icon:'🔴',lbl:'CrowdStrike NG SIEM',typ:'Cribl Connector → HEC',rows:[
+        {k:'Parser',v:'microsoft-defender-identity'},
+        {k:'HEC',v:'Auto-created → paste into Cribl dest'},
+        {good:'✓ Parser supported · Data ingest active'},
+      ]},
+    ]
+  },
+
+  { id:'key-vault', grp:'Azure Platform', icon:'🔑', name:'Azure Key Vault',
+    parser:'microsoft-azure-keyvault', method:'hub',
+    ingest:true, investigate:true,
+    desc:'Azure Key Vault audit logs capture all operations against secrets, keys, and certificates — access, creation, deletion, vault configuration changes, and RBAC events. Diagnostic Settings stream AuditEvent category logs to a dedicated Event Hub.',
+    msSteps:[
+      ['In Azure Portal: Key Vault resource › Monitoring › Diagnostic Settings › Add.','https://learn.microsoft.com/en-us/azure/key-vault/general/howto-logging','Enable AuditEvent category'],
+      ['Create dedicated Event Hub: e.g. keyvault-audit (Standard+ tier). This hub must be used exclusively for Key Vault logs.','https://learn.microsoft.com/en-us/azure/event-hubs/event-hubs-create','One hub per log source'],
+      ['In Diagnostic Settings, select the AuditEvent category and route to the keyvault-audit Event Hub.','https://learn.microsoft.com/en-us/azure/key-vault/general/howto-logging','Select AuditEvent only'],
+      ['Copy Event Hub Hostname and Connection String Primary Key from Shared Access Policies.','https://learn.microsoft.com/en-us/azure/event-hubs/event-hubs-get-connection-string','Credentials for Cribl'],
+    ],
+    criblSteps:[
+      ['Create Azure Event Hubs Source · Event Hub Name: keyvault-audit · Group ID: cribl-keyvault.','https://docs.cribl.io/stream/sources-azure-event-hubs/','Unique Group ID — never shared'],
+      ['SASL PLAIN · Username: $ConnectionString · Validate Certs: OFF.','https://docs.cribl.io/stream/sources-azure-event-hubs/','Standard Event Hub auth'],
+      ['Pipeline: Event Breaker Function → unroll records[] → Eval timestamp fix → Mask to redact sensitive values.','https://docs.cribl.io/stream/event-breaker-function/','Masking is important for vault audit logs'],
+      ['Route to NG SIEM destination. Also add a Clone function to route a copy to Blob/S3 for compliance archive.','https://docs.cribl.io/stream/routes/','Clone function for dual-destination routing'],
+    ],
+    csSteps:[
+      ['Create Cribl Data Connector · Vendor: Microsoft · Product: Azure Key Vault · Parser: microsoft-azure-keyvault.','https://docs.cribl.io/stream/destinations-crowdstrike-next-gen-siem/','One connector per product'],
+      ['Generate API key → configure Cribl NG SIEM destination. Only forward the _raw field — default parser expects original format.','https://docs.cribl.io/stream/destinations-crowdstrike-next-gen-siem/','Commit & Deploy'],
+      ['Validate: Event Search → Source: Third Party → Run.','https://docs.cribl.io/stream/destinations-crowdstrike-next-gen-siem/','Confirm ingestion working'],
+    ],
+    flowNodes:[
+      {type:'fn-ms',icon:'🔑',lbl:'Microsoft',typ:'Azure Key Vault',rows:[
+        {k:'Service',v:'Azure Key Vault'},
+        {k:'Log Category',v:'AuditEvent\n(secrets, keys, certs access + admin)'},
+        {k:'Method',v:'Diagnostic Settings → Event Hub'},
+      ]},
+      {type:'fn-col',icon:'⚡',lbl:'Azure Event Hub',typ:'Dedicated hub',rows:[
+        {k:'Hub Name',v:'keyvault-audit\n(Key Vault logs ONLY)'},
+        {k:'Tier',v:'Standard+ required'},
+        {warn:'⚠ Dedicated hub only. Do NOT mix Key Vault with other diagnostic logs — different parsers and schemas.'},
+      ]},
+      {type:'fn-cr',icon:'⚙️',lbl:'Cribl Stream',typ:'Event Hubs Source',rows:[
+        {k:'Source',v:'Azure Event Hubs Source',link:'https://docs.cribl.io/stream/sources-azure-event-hubs/'},
+        {k:'Group ID',v:'cribl-keyvault (unique)'},
+        {k:'Pipeline',v:'Event Breaker → Eval timestamp\nMask → redact sensitive values'},
+        {info:'ℹ Clone to Blob/S3 for compliance archive'},
+      ]},
+      {type:'fn-cs',icon:'🔴',lbl:'CrowdStrike NG SIEM',typ:'Cribl Connector → HEC',rows:[
+        {k:'Parser',v:'microsoft-azure-keyvault'},
+        {k:'HEC',v:'Auto-created → paste into Cribl dest'},
+        {good:'✓ Parser supported · Data ingest active'},
+      ]},
+    ]
+  },
+
+  { id:'azure-activity', grp:'Azure Platform', icon:'📊', name:'Azure Activity Log',
+    parser:'microsoft-azure-activity', method:'hub',
+    ingest:true, investigate:true,
+    desc:'Azure Activity Logs capture subscription-level resource events: creation, deletion, policy assignments, role changes, and service health. Essential for cloud governance and detecting unauthorised infrastructure changes.',
+    msSteps:[
+      ['In Azure Portal: Monitor › Activity Log › Export Activity Logs › Add diagnostic setting.','https://learn.microsoft.com/en-us/azure/azure-monitor/essentials/activity-log','Subscription-level diagnostic settings'],
+      ['Create dedicated Event Hub: e.g. azure-activity (Standard+). Route Administrative, Security, Policy, and ServiceHealth categories.','https://learn.microsoft.com/en-us/azure/event-hubs/event-hubs-create','Dedicated hub'],
+      ['Copy Event Hub Hostname and Connection String Primary Key.','https://learn.microsoft.com/en-us/azure/event-hubs/event-hubs-get-connection-string','Credentials for Cribl'],
+    ],
+    criblSteps:[
+      ['Create Azure Event Hubs Source · Hub: azure-activity · Group ID: cribl-azure-activity.','https://docs.cribl.io/stream/sources-azure-event-hubs/','Unique Group ID'],
+      ['Pipeline: Event Breaker Function → Eval timestamp.','https://docs.cribl.io/stream/event-breaker-function/','Standard Event Hub pipeline'],
+      ['Route to NG SIEM destination with PQ enabled.','https://docs.cribl.io/stream/destinations-crowdstrike-next-gen-siem/','Enable Persistent Queue'],
+    ],
+    csSteps:[
+      ['Create Cribl Data Connector · Parser: microsoft-azure-activity.','https://docs.cribl.io/stream/destinations-crowdstrike-next-gen-siem/','One connector'],
+      ['Generate API key → configure destination → Commit &amp; Deploy.','https://docs.cribl.io/stream/destinations-crowdstrike-next-gen-siem/','HEC auto-created'],
+    ],
+    flowNodes:[
+      {type:'fn-ms',icon:'📊',lbl:'Microsoft',typ:'Azure Activity Log',rows:[
+        {k:'Scope',v:'Subscription-level events'},
+        {k:'Categories',v:'Administrative, Security\nPolicy, ServiceHealth, Alert'},
+        {k:'Method',v:'Diagnostic Settings → Event Hub'},
+      ]},
+      {type:'fn-col',icon:'⚡',lbl:'Azure Event Hub',typ:'Dedicated hub',rows:[
+        {k:'Hub Name',v:'azure-activity\n(Activity logs ONLY)'},
+        {k:'Tier',v:'Standard+ required'},
+      ]},
+      {type:'fn-cr',icon:'⚙️',lbl:'Cribl Stream',typ:'Event Hubs Source',rows:[
+        {k:'Source',v:'Azure Event Hubs Source',link:'https://docs.cribl.io/stream/sources-azure-event-hubs/'},
+        {k:'Group ID',v:'cribl-azure-activity (unique)'},
+      ]},
+      {type:'fn-cs',icon:'🔴',lbl:'CrowdStrike NG SIEM',typ:'Cribl Connector → HEC',rows:[
+        {k:'Parser',v:'microsoft-azure-activity'},
+        {k:'HEC',v:'Auto-created → paste into Cribl dest'},
+        {good:'✓ Parser supported · Data ingest active'},
+      ]},
+    ]
+  },
+
+  { id:'azure-firewall', grp:'Azure Platform', icon:'🔥', name:'Azure Firewall',
+    parser:'microsoft-azure-firewall', method:'hub',
+    ingest:true, investigate:true,
+    desc:'Azure Firewall logs capture network allow/deny decisions, threat intelligence hits, IDPS alerts, and DNS proxy queries. Diagnostic Settings stream these to a dedicated Event Hub.',
+    msSteps:[
+      ['Azure Firewall resource › Monitoring › Diagnostic Settings › Add.','https://learn.microsoft.com/en-us/azure/firewall/firewall-diagnostics','Enable AzureFirewallApplicationRule, AzureFirewallNetworkRule, AzureFirewallDnsProxy categories'],
+      ['Create dedicated Event Hub: e.g. azure-firewall (Standard+).','https://learn.microsoft.com/en-us/azure/event-hubs/event-hubs-create','Dedicated hub for firewall only'],
+    ],
+    criblSteps:[
+      ['Create Azure Event Hubs Source · Hub: azure-firewall · Group ID: cribl-azure-firewall.','https://docs.cribl.io/stream/sources-azure-event-hubs/','Unique Group ID'],
+      ['Pipeline: Event Breaker Function → Eval timestamp.','https://docs.cribl.io/stream/event-breaker-function/','Standard pipeline'],
+    ],
+    csSteps:[
+      ['Create Cribl Data Connector · Parser: microsoft-azure-firewall.','https://docs.cribl.io/stream/destinations-crowdstrike-next-gen-siem/','One connector'],
+      ['Generate API key → configure destination → Commit &amp; Deploy.','https://docs.cribl.io/stream/destinations-crowdstrike-next-gen-siem/','HEC auto-created'],
+    ],
+    flowNodes:[
+      {type:'fn-ms',icon:'🔥',lbl:'Microsoft',typ:'Azure Firewall',rows:[
+        {k:'Log Types',v:'App rules, Network rules\nDNS Proxy, IDPS alerts'},
+        {k:'Method',v:'Diagnostic Settings → Event Hub'},
+      ]},
+      {type:'fn-col',icon:'⚡',lbl:'Azure Event Hub',typ:'Dedicated hub',rows:[
+        {k:'Hub Name',v:'azure-firewall (Firewall logs ONLY)'},
+        {k:'Tier',v:'Standard+ required'},
+      ]},
+      {type:'fn-cr',icon:'⚙️',lbl:'Cribl Stream',typ:'Event Hubs Source',rows:[
+        {k:'Source',v:'Azure Event Hubs Source',link:'https://docs.cribl.io/stream/sources-azure-event-hubs/'},
+        {k:'Group ID',v:'cribl-azure-firewall (unique)'},
+      ]},
+      {type:'fn-cs',icon:'🔴',lbl:'CrowdStrike NG SIEM',typ:'Cribl Connector → HEC',rows:[
+        {k:'Parser',v:'microsoft-azure-firewall'},
+        {k:'HEC',v:'Auto-created → paste into Cribl dest'},
+        {good:'✓ Parser supported · Data ingest active'},
+      ]},
+    ]
+  },
+
+  { id:'ms-iis', grp:'Windows Endpoint', icon:'🌐', name:'Microsoft IIS',
+    parser:'microsoft-iis', method:'wef',
+    ingest:true, investigate:true,
+    desc:'IIS web server access logs capture HTTP requests, response codes, client IPs, and user agents. Critical for detecting web-based attacks. Forwarded via Windows Event Forwarder (WEF) or File Monitor Source.',
+    msSteps:[
+      ['Enable IIS W3C extended log format: IIS Manager › Sites › select site › Logging.','https://learn.microsoft.com/en-us/iis/manage/provisioning-and-managing-iis/configure-logging-in-iis','IIS Manager › Logging configuration'],
+      ['Configure WEF subscriptions to forward IIS event logs to the Cribl WEF listener, or use Cribl File Monitor for direct log file collection.','https://learn.microsoft.com/en-us/windows/security/threat-protection/use-windows-event-forwarding-to-assist-in-intrusion-detection','WEF or file collection'],
+    ],
+    criblSteps:[
+      ['Option A — Windows Event Forwarder Source: Data › Sources › Windows Event Forwarder.','https://docs.cribl.io/stream/sources-wef/','docs.cribl.io/stream/sources-wef'],
+      ['Option B — File Monitor Source pointing to %SystemDrive%\\inetpub\\logs\\LogFiles.','https://docs.cribl.io/stream/sources-file-monitor/','docs.cribl.io/stream/sources-file-monitor'],
+      ['Route to NG SIEM destination with PQ enabled.','https://docs.cribl.io/stream/destinations-crowdstrike-next-gen-siem/','Enable PQ'],
+    ],
+    csSteps:[
+      ['Create Cribl Data Connector · Parser: microsoft-iis.','https://docs.cribl.io/stream/destinations-crowdstrike-next-gen-siem/','One connector'],
+      ['Generate API key → configure destination → Commit &amp; Deploy.','https://docs.cribl.io/stream/destinations-crowdstrike-next-gen-siem/','HEC auto-created'],
+    ],
+    flowNodes:[
+      {type:'fn-ms',icon:'🌐',lbl:'Microsoft',typ:'IIS Web Server',rows:[
+        {k:'Log Path',v:'%SystemDrive%\\inetpub\\logs\\LogFiles'},
+        {k:'Format',v:'W3C Extended Log Format'},
+        {k:'Method',v:'WEF or File Monitor → Cribl'},
+      ]},
+      {type:'fn-col',icon:'📁',lbl:'WEF / File Monitor',typ:'Log Collection',rows:[
+        {k:'Option A',v:'Windows Event Forwarder'},
+        {k:'Option B',v:'Cribl File Monitor (direct)'},
+      ]},
+      {type:'fn-cr',icon:'⚙️',lbl:'Cribl Stream',typ:'WEF / File Monitor Source',rows:[
+        {k:'Source A',v:'WEF Source',link:'https://docs.cribl.io/stream/sources-wef/'},
+        {k:'Source B',v:'File Monitor Source',link:'https://docs.cribl.io/stream/sources-file-monitor/'},
+      ]},
+      {type:'fn-cs',icon:'🔴',lbl:'CrowdStrike NG SIEM',typ:'Cribl Connector → HEC',rows:[
+        {k:'Parser',v:'microsoft-iis'},
+        {k:'HEC',v:'Auto-created → paste into Cribl dest'},
+        {good:'✓ Parser supported · Data ingest active'},
+      ]},
+    ]
+  },
+
+  { id:'ms-sql-audit', grp:'Windows Endpoint', icon:'🗄️', name:'Microsoft SQL Audit',
+    parser:'microsoft-sql-audit', method:'wef',
+    ingest:true, investigate:true,
+    desc:'SQL Server audit logs capture database access, login events, schema changes, and privilege use. Critical for detecting data exfiltration and insider threats targeting databases.',
+    msSteps:[
+      ['Enable SQL Server Audit in SQL Server Management Studio or via T-SQL.','https://learn.microsoft.com/en-us/sql/relational-databases/security/auditing/create-a-server-audit-and-server-audit-specification','SQL Server Audit configuration'],
+      ['Configure WEF subscriptions to forward SQL audit events to the Cribl WEF listener.','https://learn.microsoft.com/en-us/windows/security/threat-protection/use-windows-event-forwarding-to-assist-in-intrusion-detection','WEF forwarding setup'],
+    ],
+    criblSteps:[
+      ['Create WEF Source or File Monitor Source in Cribl.','https://docs.cribl.io/stream/sources-wef/','docs.cribl.io/stream/sources-wef'],
+      ['Route to NG SIEM destination with PQ enabled.','https://docs.cribl.io/stream/destinations-crowdstrike-next-gen-siem/','Enable PQ'],
+    ],
+    csSteps:[
+      ['Create Cribl Data Connector · Parser: microsoft-sql-audit.','https://docs.cribl.io/stream/destinations-crowdstrike-next-gen-siem/','One connector'],
+      ['Generate API key → configure destination → Commit &amp; Deploy.','https://docs.cribl.io/stream/destinations-crowdstrike-next-gen-siem/','HEC auto-created'],
+    ],
+    flowNodes:[
+      {type:'fn-ms',icon:'🗄️',lbl:'Microsoft',typ:'SQL Server Audit',rows:[
+        {k:'Events',v:'Logins, schema changes\nPrivilege use, data access'},
+        {k:'Method',v:'WEF or File Monitor → Cribl'},
+      ]},
+      {type:'fn-col',icon:'📁',lbl:'WEF / File Monitor',typ:'Log Collection',rows:[
+        {k:'Options',v:'Windows Event Forwarding\nor File Monitor (direct)'},
+      ]},
+      {type:'fn-cr',icon:'⚙️',lbl:'Cribl Stream',typ:'WEF / File Monitor',rows:[
+        {k:'Source',v:'WEF Source',link:'https://docs.cribl.io/stream/sources-wef/'},
+      ]},
+      {type:'fn-cs',icon:'🔴',lbl:'CrowdStrike NG SIEM',typ:'Cribl Connector → HEC',rows:[
+        {k:'Parser',v:'microsoft-sql-audit'},
+        {k:'HEC',v:'Auto-created → paste into Cribl dest'},
+        {good:'✓ Parser supported · Data ingest active'},
+      ]},
+    ]
+  },
+];
+
+// ══════════════════════════════════════
+// STATE
+// ══════════════════════════════════════
+let activeId = null, navFilter = 'all', mxFilterActive = 'all', mxSortKey = 'name', mxSortDir = 1;
+let rsSelected = new Set();
+
+// ══════════════════════════════════════
+// NAV
+// ══════════════════════════════════════
+function setFilter(f, el) {
+  navFilter = f;
+  document.querySelectorAll('.fc').forEach(x => x.classList.remove('active'));
+  el.classList.add('active');
+  renderNav();
+}
+
+function renderNav() {
+  const q = (document.getElementById('sbSearch').value || '').toLowerCase();
+  const nav = document.getElementById('sbNav');
+  const groups = {};
+  SOURCES.forEach(s => {
+    const mf = navFilter === 'all'
+      || (navFilter === 'hub' && s.method.includes('hub'))
+      || (navFilter === 'api' && s.method.includes('api') && !s.method.includes('hub'));
+    const sq = !q || s.name.toLowerCase().includes(q) || s.parser.toLowerCase().includes(q);
+    if (mf && sq) { if (!groups[s.grp]) groups[s.grp] = []; groups[s.grp].push(s); }
+  });
+  nav.innerHTML = '';
+  Object.entries(groups).forEach(([g, items]) => {
+    const gl = document.createElement('div'); gl.className = 'grp-label'; gl.textContent = g; nav.appendChild(gl);
+    items.forEach(s => {
+      const el = document.createElement('div');
+      el.className = 'nav-item' + (s.id === activeId ? ' active' : '');
+      const mt = s.method.includes('hub') ? 'mp-hub' : s.method.includes('api') ? 'mp-api' : 'mp-wef';
+      const mtl = s.method.includes('hub') ? 'Hub' : s.method.includes('api') ? 'API' : 'WEF';
+      el.innerHTML = `<span class="ni-icon">${s.icon}</span><div class="ni-text"><div class="ni-name">${s.name}</div><div class="ni-parser">${s.parser}</div></div><span class="method-pip ${mt}">${mtl}</span>`;
+      el.onclick = () => showSource(s.id);
+      nav.appendChild(el);
+    });
+  });
+}
+
+// ══════════════════════════════════════
+// SOURCE DETAIL
+// ══════════════════════════════════════
+function showSource(id) {
+  activeId = id; renderNav();
+  const s = SOURCES.find(x => x.id === id);
+  if (!s) return;
+  document.getElementById('tbTitle').textContent = s.name;
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('p-explorer').classList.add('active');
+  document.querySelectorAll('.tb-tab').forEach(t => t.classList.remove('active'));
+  document.querySelector('.tb-tab').classList.add('active');
+  document.getElementById('welcomeMsg').style.display = 'none';
+  const det = document.getElementById('sourceDetail');
+  det.style.display = 'block';
+  const mt = s.method.includes('hub') ? 'hub' : s.method.includes('api') ? 'api' : 'wef';
+  const mtl = mt === 'hub' ? 'Event Hub' : mt === 'api' ? 'API Pull' : 'WEF / File';
+  det.innerHTML = `
+    <div class="detail-hdr">
+      <div class="dh-icon">${s.icon}</div>
+      <div>
+        <div class="dh-title">${s.name}</div>
+        <div class="dh-sub">CrowdStrike NG SIEM Parser: <strong>${s.parser}</strong></div>
+        <div class="dh-badges">
+          <span class="dbg dbg-ms">Microsoft</span>
+          <span class="dbg dbg-${mt}">${mtl}</span>
+          <span class="dbg dbg-cribl">Cribl Stream</span>
+          <span class="dbg dbg-cs">NG SIEM</span>
+        </div>
+      </div>
+    </div>
+    <p class="detail-desc">${s.desc}</p>
+    <div class="sec-ttl">End-to-End Data Flow</div>
+    ${buildFlow(s)}
+    <div class="sec-ttl">CrowdStrike NG SIEM — Parser &amp; Ingestion Status</div>
+    ${buildCov(s)}
+    <div class="sec-ttl">Configuration Steps</div>
+    ${buildNotes(s)}
+  `;
+}
+
+function buildFlow(s) {
+  let h = '<div class="flow-wrap"><div class="flow">';
+  s.flowNodes.forEach((n, i) => {
+    if (i > 0) h += `<div class="fconn"><div class="fconn-lbl">→</div><div style="display:flex;align-items:center"><div class="fconn-line"></div><div class="fconn-tip"></div></div></div>`;
+    h += `<div class="fn ${n.type}"><div class="fn-hdr"><span class="fn-hdr-ico">${n.icon}</span><div><div class="fn-lbl">${n.lbl}</div><div class="fn-typ">${n.typ}</div></div></div><div class="fn-body">`;
+    n.rows.forEach(r => {
+      if (r.warn) h += `<div class="fn-warn">${r.warn}</div>`;
+      else if (r.info) h += `<div class="fn-info">${r.info}</div>`;
+      else if (r.good) h += `<div class="fn-good">${r.good}</div>`;
+      else { const v = r.link ? `<a href="${r.link}" target="_blank">${r.v}</a>` : r.v.replace(/\n/g, '<br>'); h += `<div class="fn-row"><div class="fn-rlbl">${r.k}</div><div class="fn-rval">${v}</div></div>`; }
+    });
+    h += `</div></div>`;
+  });
+  return h + '</div></div>';
+}
+
+function buildCov(s) {
+  const y = '<span class="y-pill">Yes</span>';
+  return `<div class="cov-box">
+    <div class="cov-box-title">${s.name}</div>
+    <div class="cov-row"><span class="cov-key">Parser supported in NG SIEM</span>${y}</div>
+    <div class="cov-row"><span class="cov-key">Parser ID</span><span class="parser-tag">${s.parser}</span></div>
+  </div>`;
+}
+
+function buildNotes(s) {
+  const steps = arr => arr.map(([text, url, note]) =>
+    `<li><span>${text}${note ? ` <span class="step-note">— ${note}</span>` : ''} ${url ? `<a href="${url}" target="_blank">[ref]</a>` : ''}</span></li>`
+  ).join('');
+  return `<div class="notes-grid">
+    <div class="nc nc-ms"><div class="nc-ttl">① Microsoft / Azure Configuration</div><ol>${steps(s.msSteps)}</ol></div>
+    <div class="nc nc-cr"><div class="nc-ttl">② Cribl Stream Configuration</div><ol>${steps(s.criblSteps)}</ol></div>
+    <div class="nc nc-cs" style="grid-column:1/-1"><div class="nc-ttl">③ CrowdStrike NG SIEM — Cribl Connector &amp; HEC Setup</div><ol>${steps(s.csSteps)}</ol></div>
+  </div>`;
+}
+
+// ══════════════════════════════════════
+// MATRIX
+// ══════════════════════════════════════
+function mxFilter(f, el) {
+  mxFilterActive = f;
+  document.querySelectorAll('.mx-filter-btn').forEach(b => b.classList.remove('active'));
+  el.classList.add('active'); renderMatrix();
+}
+function mxSort(k) {
+  if (mxSortKey === k) mxSortDir *= -1; else { mxSortKey = k; mxSortDir = 1; }
+  renderMatrix();
+}
+function renderMatrix() {
+  const q = (document.getElementById('mxSearch')?.value || '').toLowerCase();
+  let items = SOURCES.filter(s => {
+    const mf = mxFilterActive === 'all'
+      || (mxFilterActive === 'hub' && s.method.includes('hub'))
+      || (mxFilterActive === 'api' && s.method.includes('api') && !s.method.includes('hub'))
+      || (mxFilterActive === 'wef' && s.method === 'wef');
+    const sq = !q || s.name.toLowerCase().includes(q) || s.parser.toLowerCase().includes(q);
+    return mf && sq;
+  });
+  items.sort((a, b) => {
+    const av = a[mxSortKey] || ''; const bv = b[mxSortKey] || '';
+    return av < bv ? -mxSortDir : av > bv ? mxSortDir : 0;
+  });
+  const body = document.getElementById('mxBody'); if (!body) return;
+  body.innerHTML = '';
+  let lastGrp = '';
+  items.forEach(s => {
+    if (s.grp !== lastGrp) {
+      lastGrp = s.grp;
+      const gr = document.createElement('tr'); gr.className = 'grp-sep';
+      gr.innerHTML = `<td colspan="6">${s.grp}</td>`; body.appendChild(gr);
+    }
+    const tr = document.createElement('tr');
+    if (s.id === activeId) tr.classList.add('selected');
+    const logMethod = s.method.includes('hub') ? 'Azure Event Hub' : s.method.includes('api') ? 'Microsoft Graph / O365 API' : 'WEF / File Monitor';
+    const criblMethod = s.method.includes('hub') ? 'Azure Event Hubs Source' : s.method.includes('api') ? 'O365 Activity / Message Trace Source' : 'WEF Source / File Monitor Source';
+    const criblMethodClass = s.method.includes('hub') ? 'hub' : s.method.includes('api') ? 'api' : 'wef';
+    tr.innerHTML = `<td class="td-name">${s.icon} ${s.name}</td><td><span class="method-tag mt-${criblMethodClass}">${logMethod}</span></td><td><span class="method-tag mt-${criblMethodClass}">${criblMethod}</span></td><td><span class="method-tag" style="background:var(--cs-bg);color:var(--cs);border:1px solid var(--cs-bdr)">Cribl: HEC</span></td><td class="td-parser">${s.parser}</td><td><span class="y-pill-sm">Yes</span></td>`;
+    tr.onclick = () => showSource(s.id);
+    body.appendChild(tr);
+  });
+}
+
+// ══════════════════════════════════════
+// RUNSHEET
+// ══════════════════════════════════════
+function renderPicker() {
+  const list = document.getElementById('rsPickerList');
+  const sel = document.getElementById('rsSelectedList');
+  list.innerHTML = ''; sel.innerHTML = '';
+  SOURCES.forEach(s => {
+    const isSel = rsSelected.has(s.id);
+    const makeItem = (container) => {
+      const item = document.createElement('div');
+      item.className = 'picker-item' + (isSel ? ' selected' : '');
+      item.innerHTML = `<input type="checkbox" ${isSel ? 'checked' : ''}><span style="font-size:1rem">${s.icon}</span><div style="flex:1;min-width:0"><div class="picker-item-name">${s.name}</div><div class="picker-item-parser">${s.parser}</div></div>`;
+      item.onclick = (e) => {
+        e.stopPropagation();
+        if (rsSelected.has(s.id)) rsSelected.delete(s.id); else rsSelected.add(s.id);
+        document.getElementById('rsCount').textContent = rsSelected.size;
+        renderPicker(); renderRunSheet();
+      };
+      container.appendChild(item);
+    };
+    makeItem(list);
+    if (isSel) makeItem(sel);
+  });
+}
+
+function renderRunSheet() {
+  const out = document.getElementById('rsOutput');
+  if (rsSelected.size === 0) { out.innerHTML = '<div class="rs-empty">Select sources above to generate your run sheet</div>'; return; }
+  const items = SOURCES.filter(s => rsSelected.has(s.id));
+  const steps = arr => arr.map(([t, u, n]) =>
+    `<li><span>${t}${n ? ` <span class="snote">— ${n}</span>` : ''} ${u ? `<a href="${u}" target="_blank">[ref]</a>` : ''}</span></li>`
+  ).join('');
+  let h = `<div class="rs-count">Run sheet for <strong>${items.length}</strong> source${items.length !== 1 ? 's' : ''} — complete each numbered step in order.</div>`;
+  items.forEach(s => {
+    const mt = s.method.includes('hub') ? 'hub' : s.method.includes('api') ? 'api' : 'wef';
+    const mtl = mt === 'hub' ? 'Event Hub' : mt === 'api' ? 'API Pull' : 'WEF / File';
+    h += `<div class="rs-card">
+      <div class="rs-card-hdr">
+        <div class="rs-card-hdr-ico">${s.icon}</div>
+        <div class="rs-card-hdr-info"><div class="rs-name">${s.name}</div><div class="rs-parser">${s.parser}</div></div>
+        <div class="rs-card-hdr-badges"><span class="dbg dbg-${mt}" style="font-size:0.65rem">${mtl}</span></div>
+      </div>
+      <div class="rs-sections">
+        <div class="rs-sec rs-ms">
+          <div class="rs-sec-ttl">① Microsoft / Azure</div>
+          <ol class="rs-steps">${steps(s.msSteps)}</ol>
+        </div>
+        <div class="rs-sec rs-cr"><div class="rs-sec-ttl">② Cribl Stream</div><ol class="rs-steps">${steps(s.criblSteps)}</ol></div>
+        <div class="rs-sec rs-cs"><div class="rs-sec-ttl">③ CrowdStrike NG SIEM</div><ol class="rs-steps">${steps(s.csSteps)}</ol></div>
+      </div>
+    </div>`;
+  });
+  h += `<div class="rs-export-bar"><span>Export your run sheet:</span><button class="btn btn-secondary" onclick="exportRunSheet()">Save as HTML</button></div>`;
+  out.innerHTML = h;
+}
+
+function selectAll() { SOURCES.forEach(s => rsSelected.add(s.id)); document.getElementById('rsCount').textContent = rsSelected.size; renderPicker(); renderRunSheet(); }
+function clearAll() { rsSelected.clear(); document.getElementById('rsCount').textContent = 0; renderPicker(); renderRunSheet(); }
+
+function exportRunSheet() {
+  const items = SOURCES.filter(s => rsSelected.has(s.id));
+  const steps = arr => arr.map(([t, u]) => `<li>${t}${u ? ` <a href="${u}">[ref]</a>` : ''}</li>`).join('');
+  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Collection Run Sheet</title>
+<style>
+  body{font-family:'Helvetica Neue',Arial,sans-serif;background:#fff;color:#222;padding:32px;max-width:1100px;margin:0 auto;font-size:15px}
+  h1{font-size:24px;margin-bottom:6px;color:#111}
+  .meta{font-size:12px;color:#888;margin-bottom:28px}
+  .card{border:1px solid #d0d7e0;border-radius:8px;margin-bottom:20px;overflow:hidden;page-break-inside:avoid}
+  .hdr{background:#f5f8fc;padding:12px 16px;display:flex;align-items:center;gap:10px;border-bottom:1px solid #d0d7e0}
+  .hdr-name{font-size:16px;font-weight:700;color:#111}
+  .hdr-parser{font-size:11px;color:#0078d4;font-family:monospace;margin-top:2px}
+  .sections{display:grid;grid-template-columns:repeat(3,1fr)}
+  .sec{padding:14px 16px;border-right:1px solid #d0d7e0;border-top:1px solid #d0d7e0}
+  .sec:last-child{border-right:none}
+  .sec-ttl{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#6b7280;margin-bottom:9px;padding-bottom:5px;border-bottom:1px solid #e5e9ef}
+  .ms .sec-ttl{color:#0078d4}.cr .sec-ttl{color:#007a4d}.cs .sec-ttl{color:#c0392b}
+  ol{padding-left:18px;font-size:13px;line-height:1.8;color:#374151}
+  a{color:#0078d4;text-decoration:none}
+  .cov{margin-top:12px;font-size:12px}
+  .cov-row{display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid #f0f2f5}
+  .yes{color:#16a34a;font-weight:700}.no{color:#c0392b;font-weight:700}
+  @media print{.card{page-break-inside:avoid}}
+</style></head><body>
+<h1>Microsoft → Cribl → CrowdStrike NG SIEM — Collection Run Sheet</h1>
+<div class="meta">Generated: ${new Date().toLocaleDateString()} &nbsp;·&nbsp; ${items.length} source${items.length !== 1 ? 's' : ''} &nbsp;·&nbsp; AI-generated reference — verify against official documentation before implementation.</div>
+${items.map(s => `
+<div class="card">
+  <div class="hdr"><span style="font-size:20px">${s.icon}</span><div><div class="hdr-name">${s.name}</div><div class="hdr-parser">Parser: ${s.parser}</div></div></div>
+  <div class="sections">
+    <div class="sec ms"><div class="sec-ttl">① Microsoft / Azure</div><ol>${steps(s.msSteps)}</ol>
+    </div>
+    <div class="sec cr"><div class="sec-ttl">② Cribl Stream</div><ol>${steps(s.criblSteps)}</ol></div>
+    <div class="sec cs"><div class="sec-ttl">③ CrowdStrike NG SIEM</div><ol>${steps(s.csSteps)}</ol></div>
+  </div>
+</div>`).join('')}
+</body></html>`;
+  const b = new Blob([html], { type: 'text/html' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(b);
+  a.download = 'collection-runsheet.html'; a.click();
+}
+
+function showPanel(id, el) {
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tb-tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('p-' + id).classList.add('active');
+  el.classList.add('active');
+  if (id === 'matrix') renderMatrix();
+  if (id === 'runsheet') { renderPicker(); renderRunSheet(); }
+}
+
+// INIT
+renderNav();
+renderMatrix();
+renderPicker();
+</script>
+
+<footer style="
+  flex-shrink:0;
+  background:#ffffff;
+  border-top:1px solid #e9ecf0;
+  padding:0.28rem 1.25rem;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:1rem;
+  flex-wrap:wrap;
+">
+  <div style="font-family:'JetBrains Mono',monospace;font-size:0.55rem;color:#b0bece;display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap">
+    <span>ms-cribl-ngsiem-pipeline-explorer</span>
+    <span>·</span>
+    <span>MIT © 2025</span>
+    <span>·</span>
+    <span><a href="https://docs.cribl.io/stream/" target="_blank" style="color:#b0bece;text-decoration:none;hover:color:#0078d4">docs.cribl.io</a> · <a href="https://learn.microsoft.com" target="_blank" style="color:#b0bece;text-decoration:none">learn.microsoft.com</a> · <a href="https://www.crowdstrike.com/tech-hub/" target="_blank" style="color:#b0bece;text-decoration:none">crowdstrike.com</a></span>
+  </div>
+  <div style="font-family:'JetBrains Mono',monospace;font-size:0.55rem;color:#b0bece">
+    AI-assisted · no warranty · verify before implementation
+  </div>
+</footer>
+
+</body>
+</html>
