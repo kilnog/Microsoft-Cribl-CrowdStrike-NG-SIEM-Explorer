@@ -1,6 +1,6 @@
 MIT License
 
-Copyright (c) 2026 P.
+Copyright (c) 2025
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -19,3 +19,20 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+---
+
+THIRD-PARTY CONTENT NOTICE
+
+This tool references and summarises content derived from publicly available
+documentation published by the following organisations. That content remains
+the intellectual property of the respective owners and is subject to their
+own terms of use:
+
+- Microsoft Corporation — learn.microsoft.com
+- Cribl, Inc. — docs.cribl.io
+- CrowdStrike, Inc. — crowdstrike.com
+
+The MIT License above applies solely to the original source code, UI structure,
+compilation, and curation effort of this tool. It does not grant any rights
+over the third-party documentation content embedded within it.
